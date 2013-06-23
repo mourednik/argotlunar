@@ -116,6 +116,8 @@ protected:
 private:
     //==============================================================================
     Atomic <int> refCount;
+
+    JUCE_DECLARE_NON_COPYABLE (ReferenceCountedObject)
 };
 
 
@@ -123,7 +125,7 @@ private:
 /**
     Adds reference-counting to an object.
 
-    This is efectively a version of the ReferenceCountedObject class, but which
+    This is effectively a version of the ReferenceCountedObject class, but which
     uses a non-atomic counter, and so is not thread-safe (but which will be more
     efficient).
     For more details on how to use it, see the ReferenceCountedObject class notes.
@@ -175,6 +177,8 @@ protected:
 private:
     //==============================================================================
     int refCount;
+
+    JUCE_DECLARE_NON_COPYABLE (SingleThreadedReferenceCountedObject)
 };
 
 

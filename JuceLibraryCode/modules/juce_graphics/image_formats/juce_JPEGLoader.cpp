@@ -192,7 +192,7 @@ namespace JPEGHelpers
         JuceJpegDest* const dest = static_cast <JuceJpegDest*> (cinfo->dest);
 
         const size_t numToWrite = jpegBufferSize - dest->free_in_buffer;
-        dest->output->write (dest->buffer, (int) numToWrite);
+        dest->output->write (dest->buffer, numToWrite);
     }
 
     static boolean jpegWriteFlush (j_compress_ptr cinfo)
@@ -204,7 +204,7 @@ namespace JPEGHelpers
         dest->next_output_byte = reinterpret_cast <JOCTET*> (dest->buffer);
         dest->free_in_buffer = jpegBufferSize;
 
-        return (boolean) dest->output->write (dest->buffer, numToWrite);
+        return (boolean) dest->output->write (dest->buffer, (size_t) numToWrite);
     }
 }
 
@@ -229,15 +229,10 @@ bool JPEGImageFormat::canUnderstand (InputStream& in)
     const int bytesNeeded = 10;
     uint8 header [bytesNeeded];
 
-    if (in.read (header, bytesNeeded) == bytesNeeded)
-    {
-        return header[0] == 0xff
+    return in.read (header, bytesNeeded) == bytesNeeded
+            && header[0] == 0xff
             && header[1] == 0xd8
-            && header[2] == 0xff
-            && (header[3] == 0xe0 || header[3] == 0xe1);
-    }
-
-    return false;
+            && header[2] == 0xff;
 }
 
 #if JUCE_USING_COREIMAGE_LOADER
@@ -351,7 +346,8 @@ bool JPEGImageFormat::writeImageToStream (const Image& image, OutputStream& out)
     using namespace jpeglibNamespace;
     using namespace JPEGHelpers;
 
-    struct jpeg_compress_struct jpegCompStruct;
+    jpeg_compress_struct jpegCompStruct;
+    zerostruct (jpegCompStruct);
     jpeg_create_compress (&jpegCompStruct);
 
     struct jpeg_error_mgr jerr;

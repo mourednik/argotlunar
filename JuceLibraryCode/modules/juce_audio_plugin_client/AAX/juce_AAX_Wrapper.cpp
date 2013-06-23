@@ -61,6 +61,7 @@
 #include "AAX_ITransport.h"
 #include "AAX_IMIDINode.h"
 #include "AAX_UtilsNative.h"
+#include "AAX_Enums.h"
 
 #ifdef __clang__
  #pragma clang diagnostic pop
@@ -182,8 +183,14 @@ struct AAXClasses
         float** outputChannels;
         int32_t* bufferSize;
         int32_t* bypass;
+
+       #if JucePlugin_WantsMidiInput
         AAX_IMIDINode* midiNodeIn;
+       #endif
+
+       #if JucePlugin_ProducesMidiOutput
         AAX_IMIDINode* midiNodeOut;
+       #endif
 
         PluginInstanceInfo* pluginInstance;
         int32_t* isPrepared;
@@ -197,12 +204,32 @@ struct AAXClasses
             outputChannels  = AAX_FIELD_INDEX (JUCEAlgorithmContext, outputChannels),
             bufferSize      = AAX_FIELD_INDEX (JUCEAlgorithmContext, bufferSize),
             bypass          = AAX_FIELD_INDEX (JUCEAlgorithmContext, bypass),
+
+           #if JucePlugin_WantsMidiInput
             midiNodeIn      = AAX_FIELD_INDEX (JUCEAlgorithmContext, midiNodeIn),
+           #endif
+
+           #if JucePlugin_ProducesMidiOutput
             midiNodeOut     = AAX_FIELD_INDEX (JUCEAlgorithmContext, midiNodeOut),
+           #endif
+
             pluginInstance  = AAX_FIELD_INDEX (JUCEAlgorithmContext, pluginInstance),
             preparedFlag    = AAX_FIELD_INDEX (JUCEAlgorithmContext, isPrepared)
         };
     };
+
+   #if JucePlugin_WantsMidiInput
+    static AAX_IMIDINode* getMidiNodeIn (const JUCEAlgorithmContext& c) noexcept   { return c.midiNodeIn; }
+   #else
+    static AAX_IMIDINode* getMidiNodeIn (const JUCEAlgorithmContext&) noexcept     { return nullptr; }
+   #endif
+
+   #if JucePlugin_ProducesMidiOutput
+    AAX_IMIDINode* midiNodeOut;
+    static AAX_IMIDINode* getMidiNodeOut (const JUCEAlgorithmContext& c) noexcept  { return c.midiNodeOut; }
+   #else
+    static AAX_IMIDINode* getMidiNodeOut (const JUCEAlgorithmContext&) noexcept    { return nullptr; }
+   #endif
 
     //==============================================================================
     class JuceAAX_GUI   : public AAX_CEffectGUI
@@ -247,8 +274,10 @@ struct AAXClasses
             if (component != nullptr)
             {
                 JUCE_AUTORELEASEPOOL
-                component->removeFromDesktop();
-                component = nullptr;
+                {
+                    component->removeFromDesktop();
+                    component = nullptr;
+                }
             }
         }
 
@@ -423,7 +452,7 @@ struct AAXClasses
 
                 case JUCEAlgorithmIDs::preparedFlag:
                 {
-                    preparePlugin();
+                    const_cast<JuceAAX_Processor*>(this)->preparePlugin();
 
                     const size_t numObjects = dataSize / sizeof (uint32_t);
                     uint32_t* const objects = static_cast <uint32_t*> (data);
@@ -457,29 +486,66 @@ struct AAXClasses
         bool getCurrentPosition (juce::AudioPlayHead::CurrentPositionInfo& info)
         {
             const AAX_ITransport& transport = *Transport();
+
+            info.bpm = 0.0;
             check (transport.GetCurrentTempo (&info.bpm));
 
-            int32_t num, denom;
-            transport.GetCurrentMeter (&num, &denom);
-            info.timeSigNumerator = num;
-            info.timeSigDenominator = denom;
+            int32_t num = 4, den = 4;
+            transport.GetCurrentMeter (&num, &den);
+            info.timeSigNumerator   = (int) num;
+            info.timeSigDenominator = (int) den;
 
-            check (transport.GetCurrentNativeSampleLocation (&info.timeInSamples));
+            info.timeInSamples = 0;
+
+            if (transport.IsTransportPlaying (&info.isPlaying) != AAX_SUCCESS)
+                info.isPlaying = false;
+
+            if (! info.isPlaying)
+                check (transport.GetTimelineSelectionStartPosition (&info.timeInSamples));
+            else
+                check (transport.GetCurrentNativeSampleLocation (&info.timeInSamples));
+
             info.timeInSeconds = info.timeInSamples / getSampleRate();
 
-            int64_t ticks;
+            int64_t ticks = 0;
             check (transport.GetCurrentTickPosition (&ticks));
             info.ppqPosition = ticks / 960000.0;
 
-            int64_t loopStartTick, loopEndTick;
+            info.isLooping = false;
+            int64_t loopStartTick = 0, loopEndTick = 0;
             check (transport.GetCurrentLoopPosition (&info.isLooping, &loopStartTick, &loopEndTick));
             info.ppqLoopStart = loopStartTick / 960000.0;
             info.ppqLoopEnd   = loopEndTick   / 960000.0;
 
+            info.editOriginTime = 0;
+            info.frameRate = AudioPlayHead::fpsUnknown;
+
+            AAX_EFrameRate frameRate;
+            int32_t offset;
+
+            if (transport.GetTimeCodeInfo (&frameRate, &offset) == AAX_SUCCESS)
+            {
+                double framesPerSec = 24.0;
+
+                switch (frameRate)
+                {
+                    case AAX_eFrameRate_Undeclared:    break;
+                    case AAX_eFrameRate_24Frame:       info.frameRate = AudioPlayHead::fps24;       break;
+                    case AAX_eFrameRate_25Frame:       info.frameRate = AudioPlayHead::fps25;       framesPerSec = 25.0; break;
+                    case AAX_eFrameRate_2997NonDrop:   info.frameRate = AudioPlayHead::fps2997;     framesPerSec = 29.97002997; break;
+                    case AAX_eFrameRate_2997DropFrame: info.frameRate = AudioPlayHead::fps2997drop; framesPerSec = 29.97002997; break;
+                    case AAX_eFrameRate_30NonDrop:     info.frameRate = AudioPlayHead::fps30;       framesPerSec = 30.0; break;
+                    case AAX_eFrameRate_30DropFrame:   info.frameRate = AudioPlayHead::fps30drop;   framesPerSec = 30.0; break;
+                    case AAX_eFrameRate_23976:         info.frameRate = AudioPlayHead::fps24;       framesPerSec = 23.976; break;
+                    default:                           break;
+                }
+
+                info.editOriginTime = offset / framesPerSec;
+            }
+
             // No way to get these: (?)
             info.isRecording = false;
             info.ppqPositionOfLastBarStart = 0;
-            info.editOriginTime = 0;
 
             return true;
         }
@@ -489,9 +555,9 @@ struct AAXClasses
             SetParameterNormalizedValue (IndexAsParamID (parameterIndex), (double) newValue);
         }
 
-        void audioProcessorChanged (AudioProcessor* /*processor*/)
+        void audioProcessorChanged (AudioProcessor* processor)
         {
-            // TODO
+            check (Controller()->SetSignalLatency (processor->getLatencySamples()));
         }
 
         void audioProcessorParameterChangeGestureBegin (AudioProcessor* /*processor*/, int parameterIndex)
@@ -502,6 +568,14 @@ struct AAXClasses
         void audioProcessorParameterChangeGestureEnd (AudioProcessor* /*processor*/, int parameterIndex)
         {
             ReleaseParameter (IndexAsParamID (parameterIndex));
+        }
+
+        AAX_Result NotificationReceived (AAX_CTypeID type, const void* data, uint32_t size)
+        {
+            if (type == AAX_eNotificationEvent_EnteringOfflineMode)  pluginInstance->setNonRealtime (true);
+            if (type == AAX_eNotificationEvent_ExitingOfflineMode)   pluginInstance->setNonRealtime (false);
+
+            return AAX_CEffectParameters::NotificationReceived (type, data, size);
         }
 
         void process (const float* const* inputs, float* const* outputs, const int bufferSize,
@@ -652,7 +726,7 @@ struct AAXClasses
                 {
                     AAX_IParameter* parameter
                         = new AAX_CParameter<float> (IndexAsParamID (parameterIndex),
-                                                     audioProcessor.getParameterName (parameterIndex).toUTF8().getAddress(),
+                                                     audioProcessor.getParameterName (parameterIndex).toRawUTF8(),
                                                      audioProcessor.getParameter (parameterIndex),
                                                      AAX_CLinearTaperDelegate<float, 0>(),
                                                      AAX_CNumberDisplayDelegate<float, 3>(),
@@ -665,7 +739,7 @@ struct AAXClasses
             }
         }
 
-        void preparePlugin() const
+        void preparePlugin()
         {
             AAX_EStemFormat inputStemFormat = AAX_eStemFormat_None;
             check (Controller()->GetInputStemFormat (&inputStemFormat));
@@ -675,14 +749,14 @@ struct AAXClasses
             check (Controller()->GetOutputStemFormat (&outputStemFormat));
             const int numberOfOutputChannels = getNumChannelsForStemFormat (outputStemFormat);
 
-            int32_t bufferSize = 0;
-            check (Controller()->GetSignalLatency (&bufferSize));
+            AudioProcessor& audioProcessor = getPluginInstance();
 
             const AAX_CSampleRate sampleRate = getSampleRate();
-
-            AudioProcessor& audioProcessor = getPluginInstance();
+            const int bufferSize = 0; // how to get this?
             audioProcessor.setPlayConfigDetails (numberOfInputChannels, numberOfOutputChannels, sampleRate, bufferSize);
             audioProcessor.prepareToPlay (sampleRate, bufferSize);
+
+            check (Controller()->SetSignalLatency (audioProcessor.getLatencySamples()));
         }
 
         AAX_CSampleRate getSampleRate() const
@@ -716,7 +790,7 @@ struct AAXClasses
 
             i.pluginInstance->parameters.process (i.inputChannels, i.outputChannels,
                                                   *(i.bufferSize), *(i.bypass) != 0,
-                                                  i.midiNodeIn, i.midiNodeOut);
+                                                  getMidiNodeIn(i), getMidiNodeOut(i));
         }
     }
 

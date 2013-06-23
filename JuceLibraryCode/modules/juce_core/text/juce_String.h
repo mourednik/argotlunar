@@ -152,6 +152,9 @@ public:
     /** Creates a string from an ASCII character string */
     String (const CharPointer_ASCII& text);
 
+    /** Creates a string from a UTF-8 encoded std::string. */
+    String (const std::string&);
+
     //==============================================================================
     /** Creates a string from a single character. */
     static String charToString (juce_wchar character);
@@ -1045,9 +1048,22 @@ public:
         To find out how many bytes you need to store this string as UTF-8, you can call
         CharPointer_UTF8::getBytesRequiredFor (myString.getCharPointer())
 
-        @see getCharPointer, toUTF16, toUTF32
+        @see toRawUTF8, getCharPointer, toUTF16, toUTF32
     */
     CharPointer_UTF8 toUTF8() const;
+
+    /** Returns a pointer to a UTF-8 version of this string.
+
+        Because it returns a reference to the string's internal data, the pointer
+        that is returned must not be stored anywhere, as it can be deleted whenever the
+        string changes.
+
+        To find out how many bytes you need to store this string as UTF-8, you can call
+        CharPointer_UTF8::getBytesRequiredFor (myString.getCharPointer())
+
+        @see getCharPointer, toUTF8, toUTF16, toUTF32
+    */
+    const char* toRawUTF8() const;
 
     /** Returns a pointer to a UTF-16 version of this string.
 
@@ -1086,6 +1102,9 @@ public:
     */
     const wchar_t* toWideCharPointer() const;
 
+    /** */
+    std::string toStdString() const;
+
     //==============================================================================
     /** Creates a String from a UTF-8 encoded buffer.
         If the size is < 0, it'll keep reading until it hits a zero.
@@ -1096,7 +1115,7 @@ public:
         The number returned does NOT include the trailing zero.
         @see toUTF8, copyToUTF8
     */
-    int getNumBytesAsUTF8() const noexcept;
+    size_t getNumBytesAsUTF8() const noexcept;
 
     //==============================================================================
     /** Copies the string to a buffer as UTF-8 characters.
@@ -1114,7 +1133,7 @@ public:
                                 end, and will return the number of bytes that were actually used.
         @see CharPointer_UTF8::writeWithDestByteLimit
     */
-    int copyToUTF8 (CharPointer_UTF8::CharType* destBuffer, int maxBufferSizeBytes) const noexcept;
+    size_t copyToUTF8 (CharPointer_UTF8::CharType* destBuffer, size_t maxBufferSizeBytes) const noexcept;
 
     /** Copies the string to a buffer as UTF-16 characters.
 
@@ -1131,7 +1150,7 @@ public:
                                 end, and will return the number of bytes that were actually used.
         @see CharPointer_UTF16::writeWithDestByteLimit
     */
-    int copyToUTF16 (CharPointer_UTF16::CharType* destBuffer, int maxBufferSizeBytes) const noexcept;
+    size_t copyToUTF16 (CharPointer_UTF16::CharType* destBuffer, size_t maxBufferSizeBytes) const noexcept;
 
     /** Copies the string to a buffer as UTF-32 characters.
 
@@ -1148,7 +1167,7 @@ public:
                                 end, and will return the number of bytes that were actually used.
         @see CharPointer_UTF32::writeWithDestByteLimit
     */
-    int copyToUTF32 (CharPointer_UTF32::CharType* destBuffer, int maxBufferSizeBytes) const noexcept;
+    size_t copyToUTF32 (CharPointer_UTF32::CharType* destBuffer, size_t maxBufferSizeBytes) const noexcept;
 
     //==============================================================================
     /** Increases the string's internally allocated storage.
@@ -1310,7 +1329,7 @@ JUCE_API bool JUCE_CALLTYPE operator<= (const String& string1, const String& str
 template <class traits>
 std::basic_ostream <char, traits>& JUCE_CALLTYPE operator<< (std::basic_ostream <char, traits>& stream, const String& stringToWrite)
 {
-    return stream << stringToWrite.toUTF8().getAddress();
+    return stream << stringToWrite.toRawUTF8();
 }
 
 /** This operator allows you to write a juce String directly to std output streams.

@@ -1113,6 +1113,7 @@ void TextEditor::lookAndFeelChanged()
     {
         setCaretVisible (false);
         setCaretVisible (true);
+        updateCaretPosition();
     }
 }
 
@@ -1787,11 +1788,10 @@ void TextEditor::mouseUp (const MouseEvent& e)
 void TextEditor::mouseDoubleClick (const MouseEvent& e)
 {
     int tokenEnd = getTextIndexAt (e.x, e.y);
-    int tokenStart = tokenEnd;
+    int tokenStart = 0;
 
     if (e.getNumberOfClicks() > 3)
     {
-        tokenStart = 0;
         tokenEnd = getTotalNumChars();
     }
     else
@@ -2094,7 +2094,7 @@ void TextEditor::focusGained (FocusChangeType)
 
     if (ComponentPeer* const peer = getPeer())
         if (! isReadOnly())
-            peer->textInputRequired (getScreenPosition() - peer->getScreenPosition());
+            peer->textInputRequired (peer->globalToLocal (getScreenPosition()));
 }
 
 void TextEditor::focusLost (FocusChangeType)

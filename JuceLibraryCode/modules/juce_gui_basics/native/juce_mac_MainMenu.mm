@@ -295,7 +295,12 @@ private:
             if (NSNib* menuNib = [[[NSNib alloc] initWithNibNamed: @"RecentFilesMenuTemplate" bundle: nil] autorelease])
             {
                 NSArray* array = nil;
+
+               #if (! defined (MAC_OS_X_VERSION_10_8)) || MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_8
                 [menuNib instantiateNibWithOwner: NSApp  topLevelObjects: &array];
+               #else
+                [menuNib instantiateWithOwner: NSApp  topLevelObjects: &array];
+               #endif
 
                 for (id object in array)
                 {
@@ -303,9 +308,11 @@ private:
                     {
                         if (NSArray* items = [object itemArray])
                         {
-                            NSMenuItem* item = findRecentFilesItem (items);
-                            recentItem = [item retain];
-                            break;
+                            if (NSMenuItem* item = findRecentFilesItem (items))
+                            {
+                                recentItem = [item retain];
+                                break;
+                            }
                         }
                     }
                 }
@@ -317,9 +324,6 @@ private:
             [recentItem release];
         }
 
-        NSMenuItem* recentItem;
-
-    private:
         static NSMenuItem* findRecentFilesItem (NSArray* const items)
         {
             for (id object in items)
@@ -329,6 +333,8 @@ private:
                             return subObject;
             return nil;
         }
+
+        NSMenuItem* recentItem;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (RecentFilesMenuItem)
     };
@@ -530,6 +536,70 @@ private:
 JuceMainMenuHandler* JuceMainMenuHandler::instance = nullptr;
 
 //==============================================================================
+class TemporaryMainMenuWithStandardCommands
+{
+public:
+    TemporaryMainMenuWithStandardCommands()
+        : oldMenu (MenuBarModel::getMacMainMenu()), oldAppleMenu (nullptr)
+    {
+        if (const PopupMenu* appleMenu = MenuBarModel::getMacExtraAppleItemsMenu())
+            oldAppleMenu = new PopupMenu (*appleMenu);
+
+        MenuBarModel::setMacMainMenu (nullptr);
+
+        NSMenu* menu = [[NSMenu alloc] initWithTitle: nsStringLiteral ("Edit")];
+        NSMenuItem* item;
+
+        item = [[NSMenuItem alloc] initWithTitle: NSLocalizedString (nsStringLiteral ("Cut"), nil)
+                                          action: @selector (cut:)  keyEquivalent: nsStringLiteral ("x")];
+        [menu addItem: item];
+        [item release];
+
+        item = [[NSMenuItem alloc] initWithTitle: NSLocalizedString (nsStringLiteral ("Copy"), nil)
+                                          action: @selector (copy:)  keyEquivalent: nsStringLiteral ("c")];
+        [menu addItem: item];
+        [item release];
+
+        item = [[NSMenuItem alloc] initWithTitle: NSLocalizedString (nsStringLiteral ("Paste"), nil)
+                                          action: @selector (paste:)  keyEquivalent: nsStringLiteral ("v")];
+        [menu addItem: item];
+        [item release];
+
+        item = [[NSApp mainMenu] addItemWithTitle: NSLocalizedString (nsStringLiteral ("Edit"), nil)
+                                          action: nil  keyEquivalent: nsEmptyString()];
+        [[NSApp mainMenu] setSubmenu: menu forItem: item];
+        [menu release];
+
+        // use a dummy modal component so that apps can tell that something is currently modal.
+        dummyModalComponent.enterModalState();
+    }
+
+    ~TemporaryMainMenuWithStandardCommands()
+    {
+        MenuBarModel::setMacMainMenu (oldMenu, oldAppleMenu);
+    }
+
+private:
+    MenuBarModel* oldMenu;
+    ScopedPointer<PopupMenu> oldAppleMenu;
+
+    // The OS view already plays an alert when clicking outside
+    // the modal comp, so this override avoids adding extra
+    // inappropriate noises when the cancel button is pressed.
+    // This override is also important because it stops the base class
+    // calling ModalComponentManager::bringToFront, which can get
+    // recursive when file dialogs are involved
+    class SilentDummyModalComp  : public Component
+    {
+    public:
+        SilentDummyModalComp() {}
+        void inputAttemptWhenModal() {}
+    };
+
+    SilentDummyModalComp dummyModalComponent;
+};
+
+//==============================================================================
 namespace MainMenuHelpers
 {
     static NSString* translateMenuName (const String& name)
@@ -588,20 +658,21 @@ namespace MainMenuHelpers
         if (JUCEApplication* app = JUCEApplication::getInstance())
         {
             JUCE_AUTORELEASEPOOL
+            {
+                NSMenu* mainMenu = [[NSMenu alloc] initWithTitle: nsStringLiteral ("MainMenu")];
+                NSMenuItem* item = [mainMenu addItemWithTitle: nsStringLiteral ("Apple") action: nil keyEquivalent: nsEmptyString()];
 
-            NSMenu* mainMenu = [[NSMenu alloc] initWithTitle: nsStringLiteral ("MainMenu")];
-            NSMenuItem* item = [mainMenu addItemWithTitle: nsStringLiteral ("Apple") action: nil keyEquivalent: nsEmptyString()];
+                NSMenu* appMenu = [[NSMenu alloc] initWithTitle: nsStringLiteral ("Apple")];
 
-            NSMenu* appMenu = [[NSMenu alloc] initWithTitle: nsStringLiteral ("Apple")];
+                [NSApp performSelector: @selector (setAppleMenu:) withObject: appMenu];
+                [mainMenu setSubmenu: appMenu forItem: item];
 
-            [NSApp performSelector: @selector (setAppleMenu:) withObject: appMenu];
-            [mainMenu setSubmenu: appMenu forItem: item];
+                [NSApp setMainMenu: mainMenu];
+                MainMenuHelpers::createStandardAppMenu (appMenu, app->getApplicationName(), extraItems);
 
-            [NSApp setMainMenu: mainMenu];
-            MainMenuHelpers::createStandardAppMenu (appMenu, app->getApplicationName(), extraItems);
-
-            [appMenu release];
-            [mainMenu release];
+                [appMenu release];
+                [mainMenu release];
+            }
         }
     }
 }
@@ -613,21 +684,22 @@ void MenuBarModel::setMacMainMenu (MenuBarModel* newMenuBarModel,
     if (getMacMainMenu() != newMenuBarModel)
     {
         JUCE_AUTORELEASEPOOL
-
-        if (newMenuBarModel == nullptr)
         {
-            delete JuceMainMenuHandler::instance;
-            jassert (JuceMainMenuHandler::instance == nullptr); // should be zeroed in the destructor
-            jassert (extraAppleMenuItems == nullptr); // you can't specify some extra items without also supplying a model
+            if (newMenuBarModel == nullptr)
+            {
+                delete JuceMainMenuHandler::instance;
+                jassert (JuceMainMenuHandler::instance == nullptr); // should be zeroed in the destructor
+                jassert (extraAppleMenuItems == nullptr); // you can't specify some extra items without also supplying a model
 
-            extraAppleMenuItems = nullptr;
-        }
-        else
-        {
-            if (JuceMainMenuHandler::instance == nullptr)
-                JuceMainMenuHandler::instance = new JuceMainMenuHandler();
+                extraAppleMenuItems = nullptr;
+            }
+            else
+            {
+                if (JuceMainMenuHandler::instance == nullptr)
+                    JuceMainMenuHandler::instance = new JuceMainMenuHandler();
 
-            JuceMainMenuHandler::instance->setMenu (newMenuBarModel, extraAppleMenuItems, recentItemsMenuName);
+                JuceMainMenuHandler::instance->setMenu (newMenuBarModel, extraAppleMenuItems, recentItemsMenuName);
+            }
         }
     }
 
@@ -666,4 +738,8 @@ void juce_initialiseMacMainMenu()
 
     if (JuceMainMenuHandler::instance == nullptr)
         MainMenuHelpers::rebuildMainMenu (nullptr);
+
+    // Forcing a rebuild of the menus like this seems necessary to kick the native
+    // recent-files list into action.. (not sure precisely why though)
+    TemporaryMainMenuWithStandardCommands dummy; (void) dummy;
 }

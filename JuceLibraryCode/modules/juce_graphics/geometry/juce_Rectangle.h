@@ -478,6 +478,17 @@ public:
                                  jlimit (pos.y, pos.y + h, point.y));
     }
 
+    /** Returns a point within this rectangle, specified as proportional coordinates.
+        The relative X and Y values should be between 0 and 1, where 0 is the left or
+        top of this rectangle, and 1 is the right or bottom. (Out-of-bounds values
+        will return a point outside the rectangle).
+    */
+    Point<ValueType> getRelativePoint (double relativeX, double relativeY) const noexcept
+    {
+        return Point<ValueType> (pos.x + static_cast <ValueType> (w * relativeX),
+                                 pos.y + static_cast <ValueType> (h * relativeY));
+    }
+
     /** Returns true if any part of another rectangle overlaps this one. */
     bool intersects (const Rectangle& other) const noexcept
     {
@@ -485,7 +496,8 @@ public:
             && pos.y + h > other.pos.y
             && pos.x < other.pos.x + other.w
             && pos.y < other.pos.y + other.h
-            && w > ValueType() && h > ValueType();
+            && w > ValueType() && h > ValueType()
+            && other.w > ValueType() && other.h > ValueType();
     }
 
     /** Returns the region that is the overlap between this and another rectangle.
@@ -687,6 +699,16 @@ public:
     {
         return Rectangle<float> (static_cast<float> (pos.x), static_cast<float> (pos.y),
                                  static_cast<float> (w),     static_cast<float> (h));
+    }
+
+    /** Casts this rectangle to a Rectangle<double>.
+        Obviously this is mainly useful for rectangles that use integer types.
+        @see getSmallestIntegerContainer
+    */
+    Rectangle<double> toDouble() const noexcept
+    {
+        return Rectangle<double> (static_cast<double> (pos.x), static_cast<double> (pos.y),
+                                  static_cast<double> (w),     static_cast<double> (h));
     }
 
     //==============================================================================

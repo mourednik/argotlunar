@@ -75,10 +75,6 @@
  #error "You need to define the JucePlugin_EditorRequiresKeyboardFocus value!"
 #endif
 
-#ifndef JucePlugin_TailLengthSeconds
- #error "You need to define the JucePlugin_TailLengthSeconds value!"
-#endif
-
 //==============================================================================
 #if _WIN64 || (__LP64__ && (defined(__APPLE_CPP__) || defined(__APPLE_CC__)))
  #undef JucePlugin_Build_RTAS
@@ -88,10 +84,6 @@
 //==============================================================================
 #if JucePlugin_Build_RTAS && _MSC_VER && ! defined (JucePlugin_WinBag_path)
  #error "You need to define the JucePlugin_WinBag_path value!"
-#endif
-
-#if JucePlugin_Build_AU && ! defined (JucePlugin_AUCocoaViewClassName)
- #error "You need to define the JucePlugin_AUCocoaViewClassName value!"
 #endif
 
 #if JucePlugin_Build_LV2 && ! defined (JucePlugin_LV2URI)

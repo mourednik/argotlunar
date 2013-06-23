@@ -793,6 +793,14 @@ static void* createDraggingHandCursor()
 }
 
 //==============================================================================
+static int numAlwaysOnTopPeers = 0;
+
+bool juce_areThereAnyAlwaysOnTopWindows()
+{
+    return numAlwaysOnTopPeers > 0;
+}
+
+//==============================================================================
 class LinuxComponentPeer  : public ComponentPeer
 {
 public:
@@ -800,13 +808,17 @@ public:
         : ComponentPeer (comp, windowStyleFlags),
           windowH (0), parentWindow (0),
           fullScreen (false), mapped (false),
-          visual (nullptr), depth (0)
+          visual (nullptr), depth (0),
+          isAlwaysOnTop (comp.isAlwaysOnTop())
     {
         // it's dangerous to create a window on a thread other than the message thread..
         jassert (MessageManager::getInstance()->currentThreadHasLockedMessageManager());
 
         dispatchWindowMessage = windowMessageReceive;
-        repainter = new LinuxRepaintManager (this);
+        repainter = new LinuxRepaintManager (*this);
+
+        if (isAlwaysOnTop)
+            ++numAlwaysOnTopPeers;
 
         createWindow (parentToAddTo);
 
@@ -821,6 +833,9 @@ public:
         deleteIconPixmaps();
         destroyWindow();
         windowH = 0;
+
+        if (isAlwaysOnTop)
+            --numAlwaysOnTopPeers;
     }
 
     // (this callback is hooked up in the messaging code)
@@ -868,7 +883,7 @@ public:
     void setTitle (const String& title)
     {
         XTextProperty nameProperty;
-        char* strings[] = { const_cast <char*> (title.toUTF8().getAddress()) };
+        char* strings[] = { const_cast <char*> (title.toRawUTF8()) };
         ScopedXLock xlock;
 
         if (XStringListToTextProperty (strings, 1, &nameProperty))
@@ -880,7 +895,7 @@ public:
         }
     }
 
-    void setBounds (int x, int y, int w, int h, bool isNowFullScreen)
+    void setBounds (const Rectangle<int>& newBounds, bool isNowFullScreen)
     {
         if (fullScreen && ! isNowFullScreen)
         {
@@ -914,7 +929,8 @@ public:
 
         if (windowH != 0)
         {
-            bounds.setBounds (x, y, jmax (1, w), jmax (1, h));
+            bounds = newBounds.withSize (jmax (1, newBounds.getWidth()),
+                                         jmax (1, newBounds.getHeight()));
 
             WeakReference<Component> deletionChecker (&component);
             ScopedXLock xlock;
@@ -950,19 +966,16 @@ public:
         }
     }
 
-    void setPosition (int x, int y)           { setBounds (x, y, bounds.getWidth(), bounds.getHeight(), false); }
-    void setSize (int w, int h)               { setBounds (bounds.getX(), bounds.getY(), w, h, false); }
     Rectangle<int> getBounds() const          { return bounds; }
-    Point<int> getScreenPosition() const      { return bounds.getPosition(); }
 
     Point<int> localToGlobal (const Point<int>& relativePosition)
     {
-        return relativePosition + getScreenPosition();
+        return relativePosition + bounds.getPosition();
     }
 
     Point<int> globalToLocal (const Point<int>& screenPosition)
     {
-        return screenPosition - getScreenPosition();
+        return screenPosition - bounds.getPosition();
     }
 
     void setAlpha (float /* newAlpha */)
@@ -1018,7 +1031,7 @@ public:
                 r = Desktop::getInstance().getDisplays().getMainDisplay().userArea;
 
             if (! r.isEmpty())
-                setBounds (r.getX(), r.getY(), r.getWidth(), r.getHeight(), shouldBeFullScreen);
+                setBounds (r, shouldBeFullScreen);
 
             component.repaint();
         }
@@ -1500,6 +1513,9 @@ public:
     {
         updateKeyModifiers (buttonRelEvent.state);
 
+        if (parentWindow != 0)
+            updateBounds();
+
         switch (pointerMap [buttonRelEvent.button - Button1])
         {
             case Keys::LeftButton:      currentModifiers = currentModifiers.withoutFlags (ModifierKeys::leftButtonModifier); break;
@@ -1530,6 +1546,9 @@ public:
 
     void handleEnterNotifyEvent (const XEnterWindowEvent& enterEvent)
     {
+        if (parentWindow != 0)
+            updateBounds();
+
         clearLastMousePos();
 
         if (! currentModifiers.isAnyMouseButtonDown())
@@ -1606,9 +1625,7 @@ public:
         if ((styleFlags & windowHasTitleBar) != 0
               && component.isCurrentlyBlockedByAnotherModalComponent())
         {
-            Component* const currentModalComp = Component::getCurrentlyModalComponent();
-
-            if (currentModalComp != 0)
+            if (Component* const currentModalComp = Component::getCurrentlyModalComponent())
                 currentModalComp->inputAttemptWhenModal();
         }
 
@@ -1763,15 +1780,14 @@ public:
 
 private:
     //==============================================================================
-    class LinuxRepaintManager : public Timer
+    class LinuxRepaintManager   : public Timer
     {
     public:
-        LinuxRepaintManager (LinuxComponentPeer* const peer_)
-            : peer (peer_),
-              lastTimeImageUsed (0)
+        LinuxRepaintManager (LinuxComponentPeer& p)
+            : peer (p), lastTimeImageUsed (0)
         {
            #if JUCE_USE_XSHM
-            shmCompletedDrawing = true;
+            shmPaintsPending = 0;
 
             useARGBImagesForRendering = XSHMHelpers::isShmAvailable();
 
@@ -1793,9 +1809,10 @@ private:
         void timerCallback()
         {
            #if JUCE_USE_XSHM
-            if (! shmCompletedDrawing)
+            if (shmPaintsPending != 0)
                 return;
            #endif
+
             if (! regionsNeedingRepaint.isEmpty())
             {
                 stopTimer();
@@ -1819,14 +1836,14 @@ private:
         void performAnyPendingRepaintsNow()
         {
            #if JUCE_USE_XSHM
-            if (! shmCompletedDrawing)
+            if (shmPaintsPending != 0)
             {
                 startTimer (repaintTimerPeriod);
                 return;
             }
            #endif
 
-            peer->clearMaskedRegion();
+            peer.clearMaskedRegion();
 
             RectangleList originalRepaintRegion (regionsNeedingRepaint);
             regionsNeedingRepaint.clear();
@@ -1843,9 +1860,9 @@ private:
                    #else
                     image = Image (new XBitmapImage (Image::RGB,
                    #endif
-                                                     (totalArea.getWidth() + 31) & ~31,
+                                                     (totalArea.getWidth()  + 31) & ~31,
                                                      (totalArea.getHeight() + 31) & ~31,
-                                                     false, peer->depth, peer->visual));
+                                                     false, peer.depth, peer.visual));
                 }
 
                 startTimer (repaintTimerPeriod);
@@ -1853,29 +1870,27 @@ private:
                 RectangleList adjustedList (originalRepaintRegion);
                 adjustedList.offsetAll (-totalArea.getX(), -totalArea.getY());
 
-                if (peer->depth == 32)
-                {
+                if (peer.depth == 32)
                     for (const Rectangle<int>* i = originalRepaintRegion.begin(), * const e = originalRepaintRegion.end(); i != e; ++i)
                         image.clear (*i - totalArea.getPosition());
-                }
 
                 {
-                    ScopedPointer<LowLevelGraphicsContext> context (peer->getComponent().getLookAndFeel()
+                    ScopedPointer<LowLevelGraphicsContext> context (peer.getComponent().getLookAndFeel()
                                                                       .createGraphicsContext (image, -totalArea.getPosition(), adjustedList));
-                    peer->handlePaint (*context);
+                    peer.handlePaint (*context);
                 }
 
-                if (! peer->maskedRegion.isEmpty())
-                    originalRepaintRegion.subtract (peer->maskedRegion);
+                if (! peer.maskedRegion.isEmpty())
+                    originalRepaintRegion.subtract (peer.maskedRegion);
 
                 for (const Rectangle<int>* i = originalRepaintRegion.begin(), * const e = originalRepaintRegion.end(); i != e; ++i)
                 {
                    #if JUCE_USE_XSHM
-                    shmCompletedDrawing = false;
+                    ++shmPaintsPending;
                    #endif
 
                     static_cast<XBitmapImage*> (image.getPixelData())
-                        ->blitToWindow (peer->windowH,
+                        ->blitToWindow (peer.windowH,
                                         i->getX(), i->getY(), i->getWidth(), i->getHeight(),
                                         i->getX() - totalArea.getX(), i->getY() - totalArea.getY());
                 }
@@ -1886,19 +1901,20 @@ private:
         }
 
        #if JUCE_USE_XSHM
-        void notifyPaintCompleted()                 { shmCompletedDrawing = true; }
+        void notifyPaintCompleted() noexcept        { --shmPaintsPending; }
        #endif
 
     private:
         enum { repaintTimerPeriod = 1000 / 100 };
 
-        LinuxComponentPeer* const peer;
+        LinuxComponentPeer& peer;
         Image image;
         uint32 lastTimeImageUsed;
         RectangleList regionsNeedingRepaint;
 
        #if JUCE_USE_XSHM
-        bool useARGBImagesForRendering, shmCompletedDrawing;
+        bool useARGBImagesForRendering;
+        int shmPaintsPending;
        #endif
         JUCE_DECLARE_NON_COPYABLE (LinuxRepaintManager)
     };
@@ -1913,6 +1929,7 @@ private:
     Visual* visual;
     int depth;
     BorderSize<int> windowBorder;
+    bool isAlwaysOnTop;
     enum { KeyPressEventType = 2 };
 
     struct MotifWmHints
@@ -2508,7 +2525,7 @@ private:
             xchangeProperty (evt.xselectionrequest.requestor,
                              evt.xselectionrequest.property,
                              targetType, 8,
-                             dragState.textOrFiles.toUTF8().getAddress(),
+                             dragState.textOrFiles.toRawUTF8(),
                              dragState.textOrFiles.getNumBytesAsUTF8());
         }
 
@@ -2602,7 +2619,7 @@ private:
 
         Point<int> dropPos ((int) clientMsg.data.l[2] >> 16,
                             (int) clientMsg.data.l[2] & 0xffff);
-        dropPos -= getScreenPosition();
+        dropPos -= bounds.getPosition();
 
         const Atoms& atoms = Atoms::get();
         Atom targetAction = atoms.XdndActionCopy;
@@ -2942,7 +2959,7 @@ ModifierKeys ModifierKeys::getCurrentModifiersRealtime() noexcept
 void Desktop::setKioskComponent (Component* kioskModeComponent, bool enableOrDisable, bool /* allowMenusAndBars */)
 {
     if (enableOrDisable)
-        kioskModeComponent->setBounds (Desktop::getInstance().getDisplays().getMainDisplay().totalArea);
+        kioskModeComponent->setBounds (getDisplays().getMainDisplay().totalArea);
 }
 
 //==============================================================================
@@ -3135,12 +3152,6 @@ void Desktop::setScreenSaverEnabled (const bool isEnabled)
 bool Desktop::isScreenSaverEnabled()
 {
     return screenSaverAllowed;
-}
-
-//==============================================================================
-bool juce_areThereAnyAlwaysOnTopWindows()
-{
-    return false; // XXX should be implemented
 }
 
 //==============================================================================
@@ -3386,9 +3397,10 @@ void JUCE_CALLTYPE NativeMessageBox::showMessageBox (AlertWindow::AlertIconType 
 
 void JUCE_CALLTYPE NativeMessageBox::showMessageBoxAsync (AlertWindow::AlertIconType iconType,
                                                           const String& title, const String& message,
-                                                          Component* /* associatedComponent */)
+                                                          Component* associatedComponent,
+                                                          ModalComponentManager::Callback* callback)
 {
-    AlertWindow::showMessageBoxAsync (iconType, title, message);
+    AlertWindow::showMessageBoxAsync (iconType, title, message, String::empty, associatedComponent, callback);
 }
 
 bool JUCE_CALLTYPE NativeMessageBox::showOkCancelBox (AlertWindow::AlertIconType iconType,

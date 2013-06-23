@@ -79,8 +79,16 @@ inline Type* createCopyIfNotNull (const Type* pointer)     { return pointer != n
      JUCE_DECLARE_NON_COPYABLE (ScopedAutoReleasePool)
  };
 
- /** A macro that can be used to easily declare a local ScopedAutoReleasePool object for RAII-based obj-C autoreleasing. */
+ /** A macro that can be used to easily declare a local ScopedAutoReleasePool
+     object for RAII-based obj-C autoreleasing.
+     Because this may use the \@autoreleasepool syntax, you must follow the macro with
+     a set of braces to mark the scope of the pool.
+ */
+#if (JUCE_COMPILER_SUPPORTS_ARC && defined (__OBJC__)) || DOXYGEN
+ #define JUCE_AUTORELEASEPOOL  @autoreleasepool
+#else
  #define JUCE_AUTORELEASEPOOL  const juce::ScopedAutoReleasePool JUCE_JOIN_MACRO (autoReleasePool_, __LINE__);
+#endif
 
 #else
  #define JUCE_AUTORELEASEPOOL
@@ -92,7 +100,7 @@ inline Type* createCopyIfNotNull (const Type* pointer)     { return pointer != n
    avoiding problems when an object is created in one module and passed across to another where it is deleted.
    By piggy-backing on the JUCE_LEAK_DETECTOR macro, these allocators can be injected into most juce classes.
 */
-#if JUCE_MSVC && (defined (JUCE_DLL) || defined (JUCE_DLL_BUILD)) && ! DOXYGEN
+#if JUCE_MSVC && (defined (JUCE_DLL) || defined (JUCE_DLL_BUILD)) && ! (JUCE_DISABLE_DLL_ALLOCATORS || DOXYGEN)
  extern JUCE_API void* juceDLL_malloc (size_t);
  extern JUCE_API void  juceDLL_free (void*);
 

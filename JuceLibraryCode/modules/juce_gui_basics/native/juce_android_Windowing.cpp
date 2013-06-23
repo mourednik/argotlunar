@@ -51,15 +51,13 @@ JUCE_JNI_CALLBACK (JUCE_ANDROID_ACTIVITY_CLASSNAME, launchApp, void, (JNIEnv* en
 
 JUCE_JNI_CALLBACK (JUCE_ANDROID_ACTIVITY_CLASSNAME, suspendApp, void, (JNIEnv* env, jobject activity))
 {
-    JUCEApplicationBase* const app = JUCEApplicationBase::getInstance();
-    if (app != nullptr)
+    if (JUCEApplicationBase* const app = JUCEApplicationBase::getInstance())
         app->suspended();
 }
 
 JUCE_JNI_CALLBACK (JUCE_ANDROID_ACTIVITY_CLASSNAME, resumeApp, void, (JNIEnv* env, jobject activity))
 {
-    JUCEApplicationBase* const app = JUCEApplicationBase::getInstance();
-    if (app != nullptr)
+    if (JUCEApplicationBase* const app = JUCEApplicationBase::getInstance())
         app->resumed();
 }
 
@@ -185,50 +183,33 @@ public:
         view.callVoidMethod (ComponentPeerView.setViewName, javaString (title).get());
     }
 
-    void setPosition (int x, int y)
-    {
-        const Rectangle<int> pos (getBounds());
-        setBounds (x, y, pos.getWidth(), pos.getHeight(), false);
-    }
-
-    void setSize (int w, int h)
-    {
-        const Rectangle<int> pos (getBounds());
-        setBounds (pos.getX(), pos.getY(), w, h, false);
-    }
-
-    void setBounds (int x, int y, int w, int h, bool isNowFullScreen)
+    void setBounds (const Rectangle<int>& r, bool isNowFullScreen)
     {
         if (MessageManager::getInstance()->isThisTheMessageThread())
         {
             fullScreen = isNowFullScreen;
-            w = jmax (0, w);
-            h = jmax (0, h);
-
-            view.callVoidMethod (ComponentPeerView.layout, x, y, x + w, y + h);
+            view.callVoidMethod (ComponentPeerView.layout,
+                                 r.getX(), r.getY(), r.getRight(), r.getBottom());
         }
         else
         {
             class ViewMover  : public CallbackMessage
             {
             public:
-                ViewMover (const GlobalRef& view_, int x_, int y_, int w_, int h_)
-                    : view (view_), x (x_), y (y_), w (w_), h (h_)
-                {
-                    post();
-                }
+                ViewMover (const GlobalRef& v, const Rectangle<int>& r)  : view (v), bounds (r) {}
 
                 void messageCallback()
                 {
-                    view.callVoidMethod (ComponentPeerView.layout, x, y, x + w, y + h);
+                    view.callVoidMethod (ComponentPeerView.layout,
+                                         bounds.getX(), bounds.getY(), bounds.getRight(), bounds.getBottom());
                 }
 
             private:
                 GlobalRef view;
-                int x, y, w, h;
+                Rectangle<int> bounds;
             };
 
-            new ViewMover (view, x, y, w, h);
+            (new ViewMover (view, r))->post();
         }
     }
 
@@ -284,7 +265,7 @@ public:
 
         // (can't call the component's setBounds method because that'll reset our fullscreen flag)
         if (! r.isEmpty())
-            setBounds (r.getX(), r.getY(), r.getWidth(), r.getHeight(), shouldBeFullScreen);
+            setBounds (r, shouldBeFullScreen);
 
         component.repaint();
     }
@@ -415,9 +396,7 @@ public:
             buffer = GlobalRef (env->NewIntArray (sizeNeeded));
         }
 
-        jint* dest = env->GetIntArrayElements ((jintArray) buffer.get(), 0);
-
-        if (dest != nullptr)
+        if (jint* dest = env->GetIntArrayElements ((jintArray) buffer.get(), 0))
         {
             {
                 Image temp (new PreallocatedImage (clip.getWidth(), clip.getHeight(),
@@ -646,9 +625,11 @@ void Process::makeForegroundProcess()
 //==============================================================================
 void JUCE_CALLTYPE NativeMessageBox::showMessageBoxAsync (AlertWindow::AlertIconType iconType,
                                                           const String& title, const String& message,
-                                                          Component* associatedComponent)
+                                                          Component* associatedComponent,
+                                                          ModalComponentManager::Callback* callback)
 {
-    android.activity.callVoidMethod (JuceAppActivity.showMessageBox, javaString (title).get(), javaString (message).get(), (jlong) 0);
+    android.activity.callVoidMethod (JuceAppActivity.showMessageBox, javaString (title).get(),
+                                     javaString (message).get(), (jlong) (pointer_sized_int) callback);
 }
 
 bool JUCE_CALLTYPE NativeMessageBox::showOkCancelBox (AlertWindow::AlertIconType iconType,
@@ -656,10 +637,10 @@ bool JUCE_CALLTYPE NativeMessageBox::showOkCancelBox (AlertWindow::AlertIconType
                                                       Component* associatedComponent,
                                                       ModalComponentManager::Callback* callback)
 {
-    jassert (callback != 0); // on android, all alerts must be non-modal!!
+    jassert (callback != nullptr); // on android, all alerts must be non-modal!!
 
-    android.activity.callVoidMethod (JuceAppActivity.showOkCancelBox, javaString (title).get(), javaString (message).get(),
-                                     (jlong) (pointer_sized_int) callback);
+    android.activity.callVoidMethod (JuceAppActivity.showOkCancelBox, javaString (title).get(),
+                                     javaString (message).get(), (jlong) (pointer_sized_int) callback);
     return false;
 }
 
@@ -668,19 +649,17 @@ int JUCE_CALLTYPE NativeMessageBox::showYesNoCancelBox (AlertWindow::AlertIconTy
                                                         Component* associatedComponent,
                                                         ModalComponentManager::Callback* callback)
 {
-    jassert (callback != 0); // on android, all alerts must be non-modal!!
+    jassert (callback != nullptr); // on android, all alerts must be non-modal!!
 
-    android.activity.callVoidMethod (JuceAppActivity.showYesNoCancelBox, javaString (title).get(), javaString (message).get(),
-                                     (jlong) (pointer_sized_int) callback);
+    android.activity.callVoidMethod (JuceAppActivity.showYesNoCancelBox, javaString (title).get(),
+                                     javaString (message).get(), (jlong) (pointer_sized_int) callback);
     return 0;
 }
 
 JUCE_JNI_CALLBACK (JUCE_ANDROID_ACTIVITY_CLASSNAME, alertDismissed, void, (JNIEnv* env, jobject activity,
                                                                            jlong callbackAsLong, jint result))
 {
-    ModalComponentManager::Callback* callback = (ModalComponentManager::Callback*) callbackAsLong;
-
-    if (callback != 0)
+    if (ModalComponentManager::Callback* callback = (ModalComponentManager::Callback*) callbackAsLong)
         callback->modalStateFinished (result);
 }
 

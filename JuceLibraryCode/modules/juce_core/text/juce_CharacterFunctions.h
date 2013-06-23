@@ -324,15 +324,16 @@ public:
     /** Copies characters from one string to another, up to a null terminator
         or a given byte size limit. */
     template <typename DestCharPointerType, typename SrcCharPointerType>
-    static int copyWithDestByteLimit (DestCharPointerType& dest, SrcCharPointerType src, int maxBytes) noexcept
+    static size_t copyWithDestByteLimit (DestCharPointerType& dest, SrcCharPointerType src, size_t maxBytesToWrite) noexcept
     {
         typename DestCharPointerType::CharType const* const startAddress = dest.getAddress();
+        ssize_t maxBytes = (ssize_t) maxBytesToWrite;
         maxBytes -= sizeof (typename DestCharPointerType::CharType); // (allow for a terminating null)
 
         for (;;)
         {
             const juce_wchar c = src.getAndAdvance();
-            const int bytesNeeded = (int) DestCharPointerType::getBytesRequiredFor (c);
+            const size_t bytesNeeded = DestCharPointerType::getBytesRequiredFor (c);
 
             maxBytes -= bytesNeeded;
             if (c == 0 || maxBytes < 0)
@@ -343,7 +344,8 @@ public:
 
         dest.writeNull();
 
-        return (int) ((size_t) getAddressDifference (dest.getAddress(), startAddress) + sizeof (typename DestCharPointerType::CharType));
+        return (size_t) getAddressDifference (dest.getAddress(), startAddress)
+                 + sizeof (typename DestCharPointerType::CharType);
     }
 
     /** Copies characters from one string to another, up to a null terminator
@@ -371,12 +373,10 @@ public:
         {
             const int c1 = (int) s1.getAndAdvance();
             const int c2 = (int) s2.getAndAdvance();
-
             const int diff = c1 - c2;
-            if (diff != 0)
-                return diff < 0 ? -1 : 1;
-            else if (c1 == 0)
-                break;
+
+            if (diff != 0)  return diff < 0 ? -1 : 1;
+            if (c1 == 0)    break;
         }
 
         return 0;
@@ -390,12 +390,10 @@ public:
         {
             const int c1 = (int) s1.getAndAdvance();
             const int c2 = (int) s2.getAndAdvance();
-
             const int diff = c1 - c2;
-            if (diff != 0)
-                return diff < 0 ? -1 : 1;
-            else if (c1 == 0)
-                break;
+
+            if (diff != 0)  return diff < 0 ? -1 : 1;
+            if (c1 == 0)    break;
         }
 
         return 0;
@@ -407,16 +405,12 @@ public:
     {
         for (;;)
         {
-            int c1 = (int) s1.toUpperCase();
-            int c2 = (int) s2.toUpperCase();
-            ++s1;
-            ++s2;
-
+            const int c1 = (int) s1.toUpperCase(); ++s1;
+            const int c2 = (int) s2.toUpperCase(); ++s2;
             const int diff = c1 - c2;
-            if (diff != 0)
-                return diff < 0 ? -1 : 1;
-            else if (c1 == 0)
-                break;
+
+            if (diff != 0)  return diff < 0 ? -1 : 1;
+            if (c1 == 0)    break;
         }
 
         return 0;
@@ -428,16 +422,12 @@ public:
     {
         while (--maxChars >= 0)
         {
-            int c1 = s1.toUpperCase();
-            int c2 = s2.toUpperCase();
-            ++s1;
-            ++s2;
-
+            const int c1 = (int) s1.toUpperCase(); ++s1;
+            const int c2 = (int) s2.toUpperCase(); ++s2;
             const int diff = c1 - c2;
-            if (diff != 0)
-                return diff < 0 ? -1 : 1;
-            else if (c1 == 0)
-                break;
+
+            if (diff != 0)  return diff < 0 ? -1 : 1;
+            if (c1 == 0)    break;
         }
 
         return 0;

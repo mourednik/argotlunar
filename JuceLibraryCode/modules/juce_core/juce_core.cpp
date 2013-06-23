@@ -53,6 +53,14 @@
  #include <winsock2.h>
  #include <ws2tcpip.h>
 
+ #if ! JUCE_MINGW
+  #include <Dbghelp.h>
+
+  #if ! JUCE_DONT_AUTOLINK_TO_WIN32_LIBRARIES
+   #pragma comment (lib, "DbgHelp.lib")
+  #endif
+ #endif
+
  #if JUCE_MINGW
   #include <ws2spi.h>
  #endif
@@ -76,6 +84,12 @@
  #include <arpa/inet.h>
  #include <netinet/tcp.h>
  #include <sys/time.h>
+ #include <net/if.h>
+ #include <sys/ioctl.h>
+
+ #if ! JUCE_ANDROID
+  #include <execinfo.h>
+ #endif
 #endif
 
 #if JUCE_MAC || JUCE_IOS
@@ -116,6 +130,7 @@ namespace juce
 #include "network/juce_NamedPipe.cpp"
 #include "network/juce_Socket.cpp"
 #include "network/juce_URL.cpp"
+#include "network/juce_IPAddress.cpp"
 #include "streams/juce_BufferedInputStream.cpp"
 #include "streams/juce_FileInputSource.cpp"
 #include "streams/juce_InputStream.cpp"

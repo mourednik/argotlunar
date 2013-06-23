@@ -106,9 +106,9 @@ class iOSMessageBox
 public:
     iOSMessageBox (const String& title, const String& message,
                    NSString* button1, NSString* button2, NSString* button3,
-                   ModalComponentManager::Callback* callback_, const bool isAsync_)
+                   ModalComponentManager::Callback* cb, const bool async)
         : result (0), delegate (nil), alert (nil),
-          callback (callback_), isYesNo (button3 != nil), isAsync (isAsync_)
+          callback (cb), isYesNo (button3 != nil), isAsync (async)
     {
         delegate = [[JuceAlertBoxDelegate alloc] init];
         delegate->owner = this;
@@ -131,10 +131,12 @@ public:
     int getResult()
     {
         jassert (callback == nullptr);
-        JUCE_AUTORELEASEPOOL
 
-        while (! alert.hidden && alert.superview != nil)
-            [[NSRunLoop mainRunLoop] runUntilDate: [NSDate dateWithTimeIntervalSinceNow: 0.01]];
+        JUCE_AUTORELEASEPOOL
+        {
+            while (! alert.hidden && alert.superview != nil)
+                [[NSRunLoop mainRunLoop] runUntilDate: [NSDate dateWithTimeIntervalSinceNow: 0.01]];
+        }
 
         return result;
     }
@@ -181,16 +183,18 @@ void JUCE_CALLTYPE NativeMessageBox::showMessageBox (AlertWindow::AlertIconType 
                                                      Component* associatedComponent)
 {
     JUCE_AUTORELEASEPOOL
-    iOSMessageBox mb (title, message, @"OK", nil, nil, 0, false);
-    (void) mb.getResult();
+    {
+        iOSMessageBox mb (title, message, @"OK", nil, nil, nullptr, false);
+        (void) mb.getResult();
+    }
 }
 
 void JUCE_CALLTYPE NativeMessageBox::showMessageBoxAsync (AlertWindow::AlertIconType iconType,
                                                           const String& title, const String& message,
-                                                          Component* associatedComponent)
+                                                          Component* associatedComponent,
+                                                          ModalComponentManager::Callback* callback)
 {
-    JUCE_AUTORELEASEPOOL
-    new iOSMessageBox (title, message, @"OK", nil, nil, 0, true);
+    new iOSMessageBox (title, message, @"OK", nil, nil, callback, true);
 }
 
 bool JUCE_CALLTYPE NativeMessageBox::showOkCancelBox (AlertWindow::AlertIconType iconType,
@@ -198,7 +202,8 @@ bool JUCE_CALLTYPE NativeMessageBox::showOkCancelBox (AlertWindow::AlertIconType
                                                       Component* associatedComponent,
                                                       ModalComponentManager::Callback* callback)
 {
-    ScopedPointer<iOSMessageBox> mb (new iOSMessageBox (title, message, @"Cancel", @"OK", nil, callback, callback != nullptr));
+    ScopedPointer<iOSMessageBox> mb (new iOSMessageBox (title, message, @"Cancel", @"OK",
+                                                        nil, callback, callback != nullptr));
 
     if (callback == nullptr)
         return mb->getResult() == 1;
@@ -301,18 +306,19 @@ Desktop::DisplayOrientation Desktop::getCurrentOrientation() const
 void Desktop::Displays::findDisplays()
 {
     JUCE_AUTORELEASEPOOL
+    {
+        UIScreen* s = [UIScreen mainScreen];
 
-    UIScreen* s = [UIScreen mainScreen];
+        Display d;
+        d.userArea  = UIViewComponentPeer::realScreenPosToRotated (convertToRectInt ([s applicationFrame]));
+        d.totalArea = UIViewComponentPeer::realScreenPosToRotated (convertToRectInt ([s bounds]));
+        d.isMain = true;
 
-    Display d;
-    d.userArea  = UIViewComponentPeer::realScreenPosToRotated (convertToRectInt ([s applicationFrame]));
-    d.totalArea = UIViewComponentPeer::realScreenPosToRotated (convertToRectInt ([s bounds]));
-    d.isMain = true;
+        if ([s respondsToSelector: @selector (scale)])
+            d.scale = s.scale;
+        else
+            d.scale = 1.0;
 
-    if ([s respondsToSelector: @selector (scale)])
-        d.scale = s.scale;
-    else
-        d.scale = 1.0;
-
-    displays.add (d);
+        displays.add (d);
+    }
 }

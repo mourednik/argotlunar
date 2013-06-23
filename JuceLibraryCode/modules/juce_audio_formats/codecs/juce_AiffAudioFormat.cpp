@@ -28,6 +28,16 @@ static const char* const aiffFormatName = "AIFF file";
 static const char* const aiffExtensions[] = { ".aiff", ".aif", 0 };
 
 //==============================================================================
+const char* const AiffAudioFormat::appleOneShot         = "apple one shot";
+const char* const AiffAudioFormat::appleRootSet         = "apple root set";
+const char* const AiffAudioFormat::appleRootNote        = "apple root note";
+const char* const AiffAudioFormat::appleBeats           = "apple beats";
+const char* const AiffAudioFormat::appleDenominator     = "apple denominator";
+const char* const AiffAudioFormat::appleNumerator       = "apple numerator";
+const char* const AiffAudioFormat::appleTag             = "apple tag";
+const char* const AiffAudioFormat::appleKey             = "apple key";
+
+//==============================================================================
 namespace AiffFileHelpers
 {
     inline int chunkName (const char* const name)   { return (int) ByteOrder::littleEndianInt (name); }
@@ -113,6 +123,74 @@ namespace AiffFileHelpers
 
     } JUCE_PACKED;
 
+    //==============================================================================
+    struct BASCChunk
+    {
+        enum Key
+        {
+            minor = 1,
+            major = 2,
+            neither = 3,
+            both = 4
+        };
+
+        BASCChunk (InputStream& input)
+        {
+            zerostruct (*this);
+
+            flags       = input.readIntBigEndian();
+            numBeats    = input.readIntBigEndian();
+            rootNote    = input.readShortBigEndian();
+            key         = input.readShortBigEndian();
+            timeSigNum  = input.readShortBigEndian();
+            timeSigDen  = input.readShortBigEndian();
+            oneShot     = input.readShortBigEndian();
+            input.read (unknown, sizeof (unknown));
+        }
+
+        void addToMetadata (StringPairArray& metadata) const
+        {
+            const bool rootNoteSet = rootNote != 0;
+
+            setBoolFlag (metadata, AiffAudioFormat::appleOneShot, oneShot == 2);
+            setBoolFlag (metadata, AiffAudioFormat::appleRootSet, rootNoteSet);
+
+            if (rootNoteSet)
+                metadata.set (AiffAudioFormat::appleRootNote,   String (rootNote));
+
+            metadata.set (AiffAudioFormat::appleBeats,          String (numBeats));
+            metadata.set (AiffAudioFormat::appleDenominator,    String (timeSigDen));
+            metadata.set (AiffAudioFormat::appleNumerator,      String (timeSigNum));
+
+            const char* keyString = nullptr;
+
+            switch (key)
+            {
+                case minor:     keyString = "major";        break;
+                case major:     keyString = "major";        break;
+                case neither:   keyString = "neither";      break;
+                case both:      keyString = "both";         break;
+            }
+
+            if (keyString != nullptr)
+                metadata.set (AiffAudioFormat::appleKey, keyString);
+        }
+
+        void setBoolFlag (StringPairArray& values, const char* name, bool shouldBeSet) const
+        {
+            values.set (name, shouldBeSet ? "1" : "0");
+        }
+
+        uint32 flags;
+        uint32 numBeats;
+        uint16 rootNote;
+        uint16 key;
+        uint16 timeSigNum;
+        uint16 timeSigDen;
+        uint16 oneShot;
+        uint8 unknown[66];
+    } JUCE_PACKED;
+
    #if JUCE_MSVC
     #pragma pack (pop)
    #endif
@@ -193,7 +271,7 @@ namespace AiffFileHelpers
                     out.writeShortBigEndian ((short) identifier);
                     out.writeIntBigEndian (offset);
 
-                    const int labelLength = jmin (254, label.getNumBytesAsUTF8()); // seems to need null terminator even though it's a pstring
+                    const size_t labelLength = jmin ((size_t) 254, label.getNumBytesAsUTF8()); // seems to need null terminator even though it's a pstring
                     out.writeByte ((char) labelLength + 1);
                     out.write (label.toUTF8(), labelLength);
                     out.writeByte (0);
@@ -226,7 +304,7 @@ namespace AiffFileHelpers
 
                     const String comment (values.getValue (prefix + "Text", String::empty));
 
-                    const int commentLength = jmin (comment.getNumBytesAsUTF8(), 65534);
+                    const size_t commentLength = jmin (comment.getNumBytesAsUTF8(), (size_t) 65534);
                     out.writeShortBigEndian ((short) commentLength + 1);
                     out.write (comment.toUTF8(), commentLength);
                     out.writeByte (0);
@@ -314,6 +392,11 @@ public:
                             {
                                 littleEndian = true;
                             }
+                            else if (compType == chunkName ("fl32") || compType == chunkName ("FL32"))
+                            {
+                                littleEndian = false;
+                                usesFloatingPointData = true;
+                            }
                             else
                             {
                                 sampleRate = 0;
@@ -387,6 +470,10 @@ public:
                         input->read (inst, (int) length);
                         inst->copyTo (metadataValues);
                     }
+                    else if (type == chunkName ("basc"))
+                    {
+                        AiffFileHelpers::BASCChunk (*input).addToMetadata (metadataValues);
+                    }
                     else if ((hasGotVer && hasGotData && hasGotType)
                               || chunkEnd < input->getPosition()
                               || input->isExhausted())
@@ -407,16 +494,8 @@ public:
     bool readSamples (int** destSamples, int numDestChannels, int startOffsetInDestBuffer,
                       int64 startSampleInFile, int numSamples)
     {
-        const int64 samplesAvailable = lengthInSamples - startSampleInFile;
-
-        if (samplesAvailable < numSamples)
-        {
-            for (int i = numDestChannels; --i >= 0;)
-                if (destSamples[i] != nullptr)
-                    zeromem (destSamples[i] + startOffsetInDestBuffer, sizeof (int) * (size_t) numSamples);
-
-            numSamples = (int) samplesAvailable;
-        }
+        clearSamplesBeyondAvailableLength (destSamples, numDestChannels, startOffsetInDestBuffer,
+                                           startSampleInFile, numSamples, lengthInSamples);
 
         if (numSamples <= 0)
             return true;
@@ -437,36 +516,36 @@ public:
                 zeromem (tempBuffer + bytesRead, (size_t) (numThisTime * bytesPerFrame - bytesRead));
             }
 
-            jassert (! usesFloatingPointData); // (would need to add support for this if it's possible)
-
             if (littleEndian)
-            {
-                switch (bitsPerSample)
-                {
-                    case 8:     ReadHelper<AudioData::Int32, AudioData::Int8,  AudioData::LittleEndian>::read (destSamples, startOffsetInDestBuffer, numDestChannels, tempBuffer, (int) numChannels, numThisTime); break;
-                    case 16:    ReadHelper<AudioData::Int32, AudioData::Int16, AudioData::LittleEndian>::read (destSamples, startOffsetInDestBuffer, numDestChannels, tempBuffer, (int) numChannels, numThisTime); break;
-                    case 24:    ReadHelper<AudioData::Int32, AudioData::Int24, AudioData::LittleEndian>::read (destSamples, startOffsetInDestBuffer, numDestChannels, tempBuffer, (int) numChannels, numThisTime); break;
-                    case 32:    ReadHelper<AudioData::Int32, AudioData::Int32, AudioData::LittleEndian>::read (destSamples, startOffsetInDestBuffer, numDestChannels, tempBuffer, (int) numChannels, numThisTime); break;
-                    default:    jassertfalse; break;
-                }
-            }
+                copySampleData<AudioData::LittleEndian> (bitsPerSample, usesFloatingPointData,
+                                                         destSamples, startOffsetInDestBuffer, numDestChannels,
+                                                         tempBuffer, (int) numChannels, numThisTime);
             else
-            {
-                switch (bitsPerSample)
-                {
-                    case 8:     ReadHelper<AudioData::Int32, AudioData::Int8,  AudioData::BigEndian>::read (destSamples, startOffsetInDestBuffer, numDestChannels, tempBuffer, (int) numChannels, numThisTime); break;
-                    case 16:    ReadHelper<AudioData::Int32, AudioData::Int16, AudioData::BigEndian>::read (destSamples, startOffsetInDestBuffer, numDestChannels, tempBuffer, (int) numChannels, numThisTime); break;
-                    case 24:    ReadHelper<AudioData::Int32, AudioData::Int24, AudioData::BigEndian>::read (destSamples, startOffsetInDestBuffer, numDestChannels, tempBuffer, (int) numChannels, numThisTime); break;
-                    case 32:    ReadHelper<AudioData::Int32, AudioData::Int32, AudioData::BigEndian>::read (destSamples, startOffsetInDestBuffer, numDestChannels, tempBuffer, (int) numChannels, numThisTime); break;
-                    default:    jassertfalse; break;
-                }
-            }
+                copySampleData<AudioData::BigEndian> (bitsPerSample, usesFloatingPointData,
+                                                      destSamples, startOffsetInDestBuffer, numDestChannels,
+                                                      tempBuffer, (int) numChannels, numThisTime);
 
             startOffsetInDestBuffer += numThisTime;
             numSamples -= numThisTime;
         }
 
         return true;
+    }
+
+    template <typename Endianness>
+    static void copySampleData (unsigned int bitsPerSample, const bool usesFloatingPointData,
+                                int* const* destSamples, int startOffsetInDestBuffer, int numDestChannels,
+                                const void* sourceData, int numChannels, int numSamples) noexcept
+    {
+        switch (bitsPerSample)
+        {
+            case 8:     ReadHelper<AudioData::Int32, AudioData::Int8,  Endianness>::read (destSamples, startOffsetInDestBuffer, numDestChannels, sourceData, numChannels, numSamples); break;
+            case 16:    ReadHelper<AudioData::Int32, AudioData::Int16, Endianness>::read (destSamples, startOffsetInDestBuffer, numDestChannels, sourceData, numChannels, numSamples); break;
+            case 24:    ReadHelper<AudioData::Int32, AudioData::Int24, Endianness>::read (destSamples, startOffsetInDestBuffer, numDestChannels, sourceData, numChannels, numSamples); break;
+            case 32:    if (usesFloatingPointData) ReadHelper<AudioData::Float32, AudioData::Float32, Endianness>::read (destSamples, startOffsetInDestBuffer, numDestChannels, sourceData, numChannels, numSamples);
+                        else                       ReadHelper<AudioData::Int32,   AudioData::Int32,   Endianness>::read (destSamples, startOffsetInDestBuffer, numDestChannels, sourceData, numChannels, numSamples); break;
+            default:    jassertfalse; break;
+        }
     }
 
     int bytesPerFrame;
@@ -536,7 +615,7 @@ public:
         }
 
         if (bytesWritten + bytes >= (size_t) 0xfff00000
-             || ! output->write (tempBlock.getData(), (int) bytes))
+             || ! output->write (tempBlock.getData(), bytes))
         {
             // failed to write to disk, so let's try writing the header.
             // If it's just run out of disk space, then if it does manage
@@ -662,6 +741,96 @@ private:
 };
 
 //==============================================================================
+class MemoryMappedAiffReader   : public MemoryMappedAudioFormatReader
+{
+public:
+    MemoryMappedAiffReader (const File& file, const AiffAudioFormatReader& reader)
+        : MemoryMappedAudioFormatReader (file, reader, reader.dataChunkStart,
+                                         reader.bytesPerFrame * reader.lengthInSamples, reader.bytesPerFrame),
+          littleEndian (reader.littleEndian)
+    {
+    }
+
+    bool readSamples (int** destSamples, int numDestChannels, int startOffsetInDestBuffer,
+                      int64 startSampleInFile, int numSamples)
+    {
+        clearSamplesBeyondAvailableLength (destSamples, numDestChannels, startOffsetInDestBuffer,
+                                           startSampleInFile, numSamples, lengthInSamples);
+
+        if (map == nullptr || ! mappedSection.contains (Range<int64> (startSampleInFile, startSampleInFile + numSamples)))
+        {
+            jassertfalse; // you must make sure that the window contains all the samples you're going to attempt to read.
+            return false;
+        }
+
+        if (littleEndian)
+            AiffAudioFormatReader::copySampleData<AudioData::LittleEndian>
+                    (bitsPerSample, usesFloatingPointData, destSamples, startOffsetInDestBuffer,
+                     numDestChannels, sampleToPointer (startSampleInFile), (int) numChannels, numSamples);
+        else
+            AiffAudioFormatReader::copySampleData<AudioData::BigEndian>
+                    (bitsPerSample, usesFloatingPointData, destSamples, startOffsetInDestBuffer,
+                     numDestChannels, sampleToPointer (startSampleInFile), (int) numChannels, numSamples);
+
+        return true;
+    }
+
+    void readMaxLevels (int64 startSampleInFile, int64 numSamples,
+                        float& min0, float& max0, float& min1, float& max1)
+    {
+        if (numSamples <= 0)
+        {
+            min0 = max0 = min1 = max1 = 0;
+            return;
+        }
+
+        if (map == nullptr || ! mappedSection.contains (Range<int64> (startSampleInFile, startSampleInFile + numSamples)))
+        {
+            jassertfalse; // you must make sure that the window contains all the samples you're going to attempt to read.
+
+            min0 = max0 = min1 = max1 = 0;
+            return;
+        }
+
+        switch (bitsPerSample)
+        {
+            case 8:     scanMinAndMax<AudioData::UInt8> (startSampleInFile, numSamples, min0, max0, min1, max1); break;
+            case 16:    scanMinAndMax<AudioData::Int16> (startSampleInFile, numSamples, min0, max0, min1, max1); break;
+            case 24:    scanMinAndMax<AudioData::Int24> (startSampleInFile, numSamples, min0, max0, min1, max1); break;
+            case 32:    if (usesFloatingPointData) scanMinAndMax<AudioData::Float32> (startSampleInFile, numSamples, min0, max0, min1, max1);
+                        else                       scanMinAndMax<AudioData::Int32>   (startSampleInFile, numSamples, min0, max0, min1, max1); break;
+            default:    jassertfalse; break;
+        }
+    }
+
+private:
+    const bool littleEndian;
+
+    template <typename SampleType>
+    void scanMinAndMax (int64 startSampleInFile, int64 numSamples,
+                        float& min0, float& max0, float& min1, float& max1) const noexcept
+    {
+        scanMinAndMax2<SampleType> (0, startSampleInFile, numSamples, min0, max0);
+
+        if (numChannels > 1)
+            scanMinAndMax2<SampleType> (1, startSampleInFile, numSamples, min1, max1);
+        else
+            min1 = max1 = 0;
+    }
+
+    template <typename SampleType>
+    void scanMinAndMax2 (int channel, int64 startSampleInFile, int64 numSamples, float& mn, float& mx) const noexcept
+    {
+        if (littleEndian)
+            scanMinAndMaxInterleaved<SampleType, AudioData::LittleEndian> (channel, startSampleInFile, numSamples, mn, mx);
+        else
+            scanMinAndMaxInterleaved<SampleType, AudioData::BigEndian>    (channel, startSampleInFile, numSamples, mn, mx);
+    }
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MemoryMappedAiffReader)
+};
+
+//==============================================================================
 AiffAudioFormat::AiffAudioFormat()
     : AudioFormat (TRANS (aiffFormatName), StringArray (aiffExtensions))
 {
@@ -707,6 +876,19 @@ AudioFormatReader* AiffAudioFormat::createReaderFor (InputStream* sourceStream, 
 
     if (! deleteStreamIfOpeningFails)
         w->input = nullptr;
+
+    return nullptr;
+}
+
+MemoryMappedAudioFormatReader* AiffAudioFormat::createMemoryMappedReader (const File& file)
+{
+    if (FileInputStream* fin = file.createInputStream())
+    {
+        AiffAudioFormatReader reader (fin);
+
+        if (reader.lengthInSamples > 0)
+            return new MemoryMappedAiffReader (file, reader);
+    }
 
     return nullptr;
 }

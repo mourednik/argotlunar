@@ -418,7 +418,7 @@ private:
         const String s (metadata [name]);
 
         if (s.isNotEmpty())
-            vorbis_comment_add_tag (&vc, vorbisName, const_cast <char*> (s.toUTF8().getAddress()));
+            vorbis_comment_add_tag (&vc, vorbisName, const_cast <char*> (s.toRawUTF8()));
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OggWriter)
@@ -437,14 +437,17 @@ OggVorbisAudioFormat::~OggVorbisAudioFormat()
 
 Array<int> OggVorbisAudioFormat::getPossibleSampleRates()
 {
-    const int rates[] = { 22050, 32000, 44100, 48000, 88200, 96000, 176400, 192000, 0 };
-    return Array <int> (rates);
+    const int rates[] = { 8000, 11025, 12000, 16000, 22050, 32000,
+                          44100, 48000, 88200, 96000, 176400, 192000 };
+
+    return Array<int> (rates, numElementsInArray (rates));
 }
 
 Array<int> OggVorbisAudioFormat::getPossibleBitDepths()
 {
-    const int depths[] = { 32, 0 };
-    return Array <int> (depths);
+    const int depths[] = { 32 };
+
+    return Array<int> (depths, numElementsInArray (depths));
 }
 
 bool OggVorbisAudioFormat::canDoStereo()    { return true; }

@@ -243,8 +243,7 @@ void String::preallocateBytes (const size_t numBytesNeeded)
 }
 
 //==============================================================================
-String::String() noexcept
-    : text (StringHolder::getEmpty())
+String::String() noexcept  : text (StringHolder::getEmpty())
 {
 }
 
@@ -345,6 +344,8 @@ String::String (const wchar_t* const t, size_t maxChars)            : text (Stri
 String::String (const CharPointer_UTF8&  start, const CharPointer_UTF8&  end) : text (StringHolder::createFromCharPointer (start, end)) {}
 String::String (const CharPointer_UTF16& start, const CharPointer_UTF16& end) : text (StringHolder::createFromCharPointer (start, end)) {}
 String::String (const CharPointer_UTF32& start, const CharPointer_UTF32& end) : text (StringHolder::createFromCharPointer (start, end)) {}
+
+String::String (const std::string& s) : text (StringHolder::createFromFixedLength (s.data(), s.size())) {}
 
 String String::charToString (const juce_wchar character)
 {
@@ -471,7 +472,7 @@ namespace NumberToStringConverters
     }
 
     template <typename IntegerType>
-    String::CharPointerType createFromInteger (const IntegerType number)
+    static String::CharPointerType createFromInteger (const IntegerType number)
     {
         char buffer [32];
         char* const end = buffer + numElementsInArray (buffer);
@@ -731,7 +732,7 @@ JUCE_API String& JUCE_CALLTYPE operator<< (String& s1, const double number)     
 
 JUCE_API OutputStream& JUCE_CALLTYPE operator<< (OutputStream& stream, const String& text)
 {
-    const int numBytes = text.getNumBytesAsUTF8();
+    const size_t numBytes = text.getNumBytesAsUTF8();
 
    #if (JUCE_STRING_UTF_TYPE == 8)
     stream.write (text.getCharPointer().getAddress(), numBytes);
@@ -1895,15 +1896,8 @@ String String::toHexString (const void* const d, const int size, const int group
     return s;
 }
 
-int String::getHexValue32() const noexcept
-{
-    return HexConverter<int>::stringToHex (text);
-}
-
-int64 String::getHexValue64() const noexcept
-{
-    return HexConverter<int64>::stringToHex (text);
-}
+int   String::getHexValue32() const noexcept    { return HexConverter<int>  ::stringToHex (text); }
+int64 String::getHexValue64() const noexcept    { return HexConverter<int64>::stringToHex (text); }
 
 //==============================================================================
 String String::createStringFromData (const void* const data_, const int size)
@@ -2011,45 +2005,55 @@ CharPointer_UTF8  String::toUTF8()  const { return StringEncodingConverter <Char
 CharPointer_UTF16 String::toUTF16() const { return StringEncodingConverter <CharPointerType, CharPointer_UTF16>::convert (*this); }
 CharPointer_UTF32 String::toUTF32() const { return StringEncodingConverter <CharPointerType, CharPointer_UTF32>::convert (*this); }
 
+const char* String::toRawUTF8() const
+{
+    return toUTF8().getAddress();
+}
+
 const wchar_t* String::toWideCharPointer() const
 {
     return StringEncodingConverter <CharPointerType, CharPointer_wchar_t>::convert (*this).getAddress();
+}
+
+std::string String::toStdString() const
+{
+    return std::string (toRawUTF8());
 }
 
 //==============================================================================
 template <class CharPointerType_Src, class CharPointerType_Dest>
 struct StringCopier
 {
-    static int copyToBuffer (const CharPointerType_Src& source, typename CharPointerType_Dest::CharType* const buffer, const int maxBufferSizeBytes)
+    static size_t copyToBuffer (const CharPointerType_Src& source, typename CharPointerType_Dest::CharType* const buffer, const size_t maxBufferSizeBytes)
     {
-        jassert (maxBufferSizeBytes >= 0); // keep this value positive, or no characters will be copied!
+        jassert (((ssize_t) maxBufferSizeBytes) >= 0); // keep this value positive!
 
         if (buffer == nullptr)
-            return (int) (CharPointerType_Dest::getBytesRequiredFor (source) + sizeof (typename CharPointerType_Dest::CharType));
+            return CharPointerType_Dest::getBytesRequiredFor (source) + sizeof (typename CharPointerType_Dest::CharType);
 
         return CharPointerType_Dest (buffer).writeWithDestByteLimit (source, maxBufferSizeBytes);
     }
 };
 
-int String::copyToUTF8 (CharPointer_UTF8::CharType* const buffer, const int maxBufferSizeBytes) const noexcept
+size_t String::copyToUTF8 (CharPointer_UTF8::CharType* const buffer, size_t maxBufferSizeBytes) const noexcept
 {
     return StringCopier <CharPointerType, CharPointer_UTF8>::copyToBuffer (text, buffer, maxBufferSizeBytes);
 }
 
-int String::copyToUTF16 (CharPointer_UTF16::CharType* const buffer, int maxBufferSizeBytes) const noexcept
+size_t String::copyToUTF16 (CharPointer_UTF16::CharType* const buffer, size_t maxBufferSizeBytes) const noexcept
 {
     return StringCopier <CharPointerType, CharPointer_UTF16>::copyToBuffer (text, buffer, maxBufferSizeBytes);
 }
 
-int String::copyToUTF32 (CharPointer_UTF32::CharType* const buffer, int maxBufferSizeBytes) const noexcept
+size_t String::copyToUTF32 (CharPointer_UTF32::CharType* const buffer, size_t maxBufferSizeBytes) const noexcept
 {
     return StringCopier <CharPointerType, CharPointer_UTF32>::copyToBuffer (text, buffer, maxBufferSizeBytes);
 }
 
 //==============================================================================
-int String::getNumBytesAsUTF8() const noexcept
+size_t String::getNumBytesAsUTF8() const noexcept
 {
-    return (int) CharPointer_UTF8::getBytesRequiredFor (text);
+    return CharPointer_UTF8::getBytesRequiredFor (text);
 }
 
 String String::fromUTF8 (const char* const buffer, int bufferSizeBytes)
@@ -2251,6 +2255,7 @@ public:
             expect (s3.indexOf (L"HIJK") == -1);
             expect (s3.indexOfIgnoreCase ("hij") == 7);
             expect (s3.indexOfIgnoreCase (L"hijk") == -1);
+            expect (s3.toStdString() == s3.toRawUTF8());
 
             String s4 (s3);
             s4.append (String ("xyz123"), 3);

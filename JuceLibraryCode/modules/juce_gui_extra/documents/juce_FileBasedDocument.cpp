@@ -98,8 +98,8 @@ bool FileBasedDocument::loadFrom (const File& newFile,
     {
         AlertWindow::showMessageBox (AlertWindow::WarningIcon,
                                      TRANS("Failed to open file..."),
-                                     TRANS("There was an error while trying to load the file:\n\n")
-                                       + newFile.getFullPathName()
+                                     TRANS("There was an error while trying to load the file: FLNM")
+                                        .replace ("FLNM", "\n" + newFile.getFullPathName())
                                        + "\n\n"
                                        + result.getErrorMessage());
     }
@@ -117,6 +117,18 @@ bool FileBasedDocument::loadFromUserSpecifiedFile (const bool showMessageOnFailu
         return loadFrom (fc.getResult(), showMessageOnFailure);
 
     return false;
+}
+
+static bool askToOverwriteFile (const File& newFile)
+{
+    return AlertWindow::showOkCancelBox (AlertWindow::WarningIcon,
+                                            TRANS("File already exists"),
+                                            TRANS("There's already a file called: FLMN")
+                                                .replace ("FLNM", newFile.getFullPathName())
+                                             + "\n\n"
+                                             + TRANS("Are you sure you want to overwrite it?"),
+                                            TRANS("Overwrite"),
+                                            TRANS("Cancel"));
 }
 
 //==============================================================================
@@ -137,30 +149,17 @@ FileBasedDocument::SaveResult FileBasedDocument::saveAs (const File& newFile,
     if (newFile == File::nonexistent)
     {
         if (askUserForFileIfNotSpecified)
-        {
             return saveAsInteractive (true);
-        }
-        else
-        {
-            // can't save to an unspecified file
-            jassertfalse;
-            return failedToWriteToFile;
-        }
+
+        // can't save to an unspecified file
+        jassertfalse;
+        return failedToWriteToFile;
     }
 
-    if (warnAboutOverwritingExistingFiles && newFile.exists())
-    {
-        if (! AlertWindow::showOkCancelBox (AlertWindow::WarningIcon,
-                                            TRANS("File already exists"),
-                                            TRANS("There's already a file called:\n\n")
-                                              + newFile.getFullPathName()
-                                              + TRANS("\n\nAre you sure you want to overwrite it?"),
-                                            TRANS("overwrite"),
-                                            TRANS("cancel")))
-        {
-            return userCancelledSave;
-        }
-    }
+    if (warnAboutOverwritingExistingFiles
+          && newFile.exists()
+          && ! askToOverwriteFile (newFile))
+        return userCancelledSave;
 
     MouseCursor::showWaitCursor();
 
@@ -184,10 +183,9 @@ FileBasedDocument::SaveResult FileBasedDocument::saveAs (const File& newFile,
     {
         AlertWindow::showMessageBox (AlertWindow::WarningIcon,
                                      TRANS("Error writing to file..."),
-                                     TRANS("An error occurred while trying to save \"")
-                                        + getDocumentTitle()
-                                        + TRANS("\" to the file:\n\n")
-                                        + newFile.getFullPathName()
+                                     TRANS("An error occurred while trying to save \"DCNM\" to the file: FLNM")
+                                         .replace ("DCNM", getDocumentTitle())
+                                         .replace ("FLNM", "\n" + newFile.getFullPathName())
                                         + "\n\n"
                                         + result.getErrorMessage());
     }
@@ -202,22 +200,17 @@ FileBasedDocument::SaveResult FileBasedDocument::saveIfNeededAndUserAgrees()
 
     const int r = AlertWindow::showYesNoCancelBox (AlertWindow::QuestionIcon,
                                                    TRANS("Closing document..."),
-                                                   TRANS("Do you want to save the changes to \"")
-                                                       + getDocumentTitle() + "\"?",
-                                                   TRANS("save"),
-                                                   TRANS("discard changes"),
-                                                   TRANS("cancel"));
+                                                   TRANS("Do you want to save the changes to \"DCNM\"?")
+                                                    .replace ("DCNM", getDocumentTitle()),
+                                                   TRANS("Save"),
+                                                   TRANS("Discard changes"),
+                                                   TRANS("Cancel"));
 
-    if (r == 1)
-    {
-        // save changes
+    if (r == 1)  // save changes
         return save (true, true);
-    }
-    else if (r == 2)
-    {
-        // discard changes
+
+    if (r == 2)  // discard changes
         return savedOk;
-    }
 
     return userCancelledSave;
 }
@@ -257,19 +250,8 @@ FileBasedDocument::SaveResult FileBasedDocument::saveAsInteractive (const bool w
         {
             chosen = chosen.withFileExtension (fileExtension);
 
-            if (chosen.exists())
-            {
-                if (! AlertWindow::showOkCancelBox (AlertWindow::WarningIcon,
-                                                    TRANS("File already exists"),
-                                                    TRANS("There's already a file called:")
-                                                      + "\n\n" + chosen.getFullPathName()
-                                                      + "\n\n" + TRANS("Are you sure you want to overwrite it?"),
-                                                    TRANS("overwrite"),
-                                                    TRANS("cancel")))
-                {
-                    return userCancelledSave;
-                }
-            }
+            if (chosen.exists() && ! askToOverwriteFile (chosen))
+                return userCancelledSave;
         }
 
         setLastDocumentOpened (chosen);

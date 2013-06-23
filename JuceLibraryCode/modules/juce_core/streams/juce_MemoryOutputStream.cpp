@@ -68,39 +68,39 @@ void MemoryOutputStream::reset() noexcept
     size = 0;
 }
 
-void MemoryOutputStream::prepareToWrite (int numBytes)
+char* MemoryOutputStream::prepareToWrite (size_t numBytes)
 {
-    jassert (numBytes >= 0);
-    size_t storageNeeded = position + (size_t) numBytes;
+    jassert ((ssize_t) numBytes >= 0);
+    size_t storageNeeded = position + numBytes;
 
     if (storageNeeded >= data.getSize())
         data.ensureSize ((storageNeeded + jmin (storageNeeded / 2, (size_t) (1024 * 1024)) + 32) & ~31u);
+
+    char* const writePointer = static_cast <char*> (data.getData()) + position;
+    position += numBytes;
+    size = jmax (size, position);
+    return writePointer;
 }
 
-bool MemoryOutputStream::write (const void* const buffer, int howMany)
+bool MemoryOutputStream::write (const void* const buffer, size_t howMany)
 {
-    jassert (buffer != nullptr && howMany >= 0);
+    jassert (buffer != nullptr && ((ssize_t) howMany) >= 0);
 
     if (howMany > 0)
-    {
-        prepareToWrite (howMany);
-        memcpy (static_cast<char*> (data.getData()) + position, buffer, (size_t) howMany);
-        position += (size_t) howMany;
-        size = jmax (size, position);
-    }
+        memcpy (prepareToWrite (howMany), buffer, howMany);
 
     return true;
 }
 
-void MemoryOutputStream::writeRepeatedByte (uint8 byte, int howMany)
+void MemoryOutputStream::writeRepeatedByte (uint8 byte, size_t howMany)
 {
     if (howMany > 0)
-    {
-        prepareToWrite (howMany);
-        memset (static_cast<char*> (data.getData()) + position, byte, (size_t) howMany);
-        position += (size_t) howMany;
-        size = jmax (size, position);
-    }
+        memset (prepareToWrite (howMany), byte, howMany);
+}
+
+void MemoryOutputStream::appendUTF8Char (juce_wchar c)
+{
+    CharPointer_UTF8 (prepareToWrite (CharPointer_UTF8::getBytesRequiredFor (c))).write (c);
 }
 
 MemoryBlock MemoryOutputStream::getMemoryBlock() const
@@ -124,11 +124,9 @@ bool MemoryOutputStream::setPosition (int64 newPosition)
         position = jlimit ((size_t) 0, size, (size_t) newPosition);
         return true;
     }
-    else
-    {
-        // trying to make it bigger isn't a good thing to do..
-        return false;
-    }
+
+    // can't move beyond the end of the stream..
+    return false;
 }
 
 int MemoryOutputStream::writeFromInputStream (InputStream& source, int64 maxNumBytesToWrite)
@@ -138,8 +136,8 @@ int MemoryOutputStream::writeFromInputStream (InputStream& source, int64 maxNumB
 
     if (availableData > 0)
     {
-        if (maxNumBytesToWrite > 0 && maxNumBytesToWrite < availableData)
-            availableData = maxNumBytesToWrite;
+        if (maxNumBytesToWrite > availableData)
+            maxNumBytesToWrite = availableData;
 
         preallocate (data.getSize() + (size_t) maxNumBytesToWrite);
     }
@@ -160,7 +158,8 @@ String MemoryOutputStream::toString() const
 
 OutputStream& JUCE_CALLTYPE operator<< (OutputStream& stream, const MemoryOutputStream& streamToRead)
 {
-    const int dataSize = (int) streamToRead.getDataSize();
+    const size_t dataSize = streamToRead.getDataSize();
+
     if (dataSize > 0)
         stream.write (streamToRead.getData(), dataSize);
 

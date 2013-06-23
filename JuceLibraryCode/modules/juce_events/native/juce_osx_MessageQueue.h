@@ -63,7 +63,6 @@ public:
 
 private:
     ReferenceCountedArray <MessageManager::MessageBase, CriticalSection> messages;
-    CriticalSection lock;
     CFRunLoopRef runLoop;
     CFRunLoopSourceRef runLoopSource;
 
@@ -75,12 +74,13 @@ private:
             return false;
 
         JUCE_AUTORELEASEPOOL
-
-        JUCE_TRY
         {
-            nextMessage->messageCallback();
+            JUCE_TRY
+            {
+                nextMessage->messageCallback();
+            }
+            JUCE_CATCH_EXCEPTION
         }
-        JUCE_CATCH_EXCEPTION
 
         return true;
     }

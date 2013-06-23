@@ -39,11 +39,17 @@ namespace juce
 #ifndef __JUCE_AUDIOSAMPLEBUFFER_JUCEHEADER__
  #include "buffers/juce_AudioSampleBuffer.h"
 #endif
+#ifndef __JUCE_FLOATVECTOROPERATIONS_JUCEHEADER__
+ #include "buffers/juce_FloatVectorOperations.h"
+#endif
 #ifndef __JUCE_DECIBELS_JUCEHEADER__
  #include "effects/juce_Decibels.h"
 #endif
 #ifndef __JUCE_IIRFILTER_JUCEHEADER__
  #include "effects/juce_IIRFilter.h"
+#endif
+#ifndef __JUCE_LAGRANGEINTERPOLATOR_JUCEHEADER__
+ #include "effects/juce_LagrangeInterpolator.h"
 #endif
 #ifndef __JUCE_REVERB_JUCEHEADER__
  #include "effects/juce_Reverb.h"

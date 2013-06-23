@@ -63,6 +63,13 @@
  #define JUCE_USE_MP3AUDIOFORMAT 0
 #endif
 
+/** Config: JUCE_USE_LAME_AUDIO_FORMAT
+    Enables the LameEncoderAudioFormat class.
+*/
+#ifndef JUCE_USE_LAME_AUDIO_FORMAT
+ #define JUCE_USE_LAME_AUDIO_FORMAT 0
+#endif
+
 /** Config: JUCE_USE_WINDOWS_MEDIA_FORMAT
     Enables the Windows Media SDK codecs.
 */
@@ -98,9 +105,16 @@ namespace juce
 #ifndef __JUCE_AUDIOSUBSECTIONREADER_JUCEHEADER__
  #include "format/juce_AudioSubsectionReader.h"
 #endif
+#ifndef __JUCE_BUFFERINGAUDIOFORMATREADER_JUCEHEADER__
+ #include "format/juce_BufferingAudioFormatReader.h"
+#endif
+#ifndef __JUCE_MEMORYMAPPEDAUDIOFORMATREADER_JUCEHEADER__
+ #include "format/juce_MemoryMappedAudioFormatReader.h"
+#endif
 #include "codecs/juce_AiffAudioFormat.h"
 #include "codecs/juce_CoreAudioFormat.h"
 #include "codecs/juce_FlacAudioFormat.h"
+#include "codecs/juce_LAMEEncoderAudioFormat.h"
 #include "codecs/juce_MP3AudioFormat.h"
 #include "codecs/juce_OggVorbisAudioFormat.h"
 #include "codecs/juce_QuickTimeAudioFormat.h"

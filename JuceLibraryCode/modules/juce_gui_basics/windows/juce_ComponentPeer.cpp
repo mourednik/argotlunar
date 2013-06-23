@@ -27,9 +27,9 @@ static Array <ComponentPeer*> heavyweightPeers;
 static uint32 lastUniqueID = 1;
 
 //==============================================================================
-ComponentPeer::ComponentPeer (Component& component_, const int styleFlags_)
-    : component (component_),
-      styleFlags (styleFlags_),
+ComponentPeer::ComponentPeer (Component& comp, const int flags)
+    : component (comp),
+      styleFlags (flags),
       constrainer (nullptr),
       lastDragAndDropCompUnderMouse (nullptr),
       uniqueID (lastUniqueID += 2), // increment by 2 so that this can never hit 0
@@ -111,6 +111,13 @@ void ComponentPeer::handleMouseWheel (const int touchIndex, const Point<int>& po
 {
     if (MouseInputSource* mouse = getOrCreateMouseInputSource (touchIndex))
         mouse->handleWheel (this, positionWithinPeer, time, wheel);
+}
+
+void ComponentPeer::handleMagnifyGesture (const int touchIndex, const Point<int>& positionWithinPeer,
+                                          const int64 time, const float scaleFactor)
+{
+    if (MouseInputSource* mouse = getOrCreateMouseInputSource (touchIndex))
+        mouse->handleMagnifyGesture (this, positionWithinPeer, time, scaleFactor);
 }
 
 //==============================================================================
@@ -557,6 +564,10 @@ void ComponentPeer::handleUserClosingWindow()
 bool ComponentPeer::setDocumentEditedStatus (bool)
 {
     return false;
+}
+
+void ComponentPeer::setRepresentedFile (const File&)
+{
 }
 
 //==============================================================================
