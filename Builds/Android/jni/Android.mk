@@ -38,6 +38,8 @@ ifeq ($(CONFIG),Debug)
 else
   LOCAL_CPPFLAGS += -fsigned-char -fexceptions -frtti -I "../../JuceLibraryCode" -O3 -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=8" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_michaelourednik_argotlunar_Argotlunar" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/michaelourednik/argotlunar/Argotlunar\" -D "NDEBUG=1" -D "JUCER_ANDROID_7F0E4A25=1"
   LOCAL_LDLIBS := -llog -lGLESv2
+  LOCAL_CFLAGS += -fsigned-char -fexceptions -frtti -I "../../JuceLibraryCode" -O3 -D "JUCE_ANDROID=1" -D "JUCE_ANDROID_API_VERSION=8" -D "JUCE_ANDROID_ACTIVITY_CLASSNAME=com_michaelourednik_argotlunar_Argotlunar" -D JUCE_ANDROID_ACTIVITY_CLASSPATH=\"com/michaelourednik/argotlunar/Argotlunar\" -D "NDEBUG=1" -D "JUCER_ANDROID_7F0E4A25=1"
+  LOCAL_LDLIBS := -llog -lGLESv2
 endif
 
 include $(BUILD_SHARED_LIBRARY)

@@ -98,7 +98,7 @@ void Viewport::setViewedComponent (Component* const newViewedComponent, const bo
 int Viewport::getMaximumVisibleWidth() const    { return contentHolder.getWidth(); }
 int Viewport::getMaximumVisibleHeight() const   { return contentHolder.getHeight(); }
 
-Point<int> Viewport::viewportPosToCompPos (const Point<int>& pos) const
+Point<int> Viewport::viewportPosToCompPos (Point<int> pos) const
 {
     jassert (contentComp != nullptr);
     return Point<int> (jmax (jmin (0, contentHolder.getWidth()  - contentComp->getWidth()),  jmin (0, -(pos.x))),
@@ -110,7 +110,7 @@ void Viewport::setViewPosition (const int xPixelsOffset, const int yPixelsOffset
     setViewPosition (Point<int> (xPixelsOffset, yPixelsOffset));
 }
 
-void Viewport::setViewPosition (const Point<int>& newPosition)
+void Viewport::setViewPosition (Point<int> newPosition)
 {
     if (contentComp != nullptr)
         contentComp->setTopLeftPosition (viewportPosToCompPos (newPosition));
@@ -350,7 +350,7 @@ void Viewport::mouseWheelMove (const MouseEvent& e, const MouseWheelDetails& whe
 
 bool Viewport::useMouseWheelMoveIfNeeded (const MouseEvent& e, const MouseWheelDetails& wheel)
 {
-    if (! (e.mods.isAltDown() || e.mods.isCtrlDown()))
+    if (! (e.mods.isAltDown() || e.mods.isCtrlDown() || e.mods.isCommandDown()))
     {
         const bool hasVertBar = verticalScrollBar.isVisible();
         const bool hasHorzBar = horizontalScrollBar.isVisible();

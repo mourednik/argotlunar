@@ -7,13 +7,13 @@ AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 }
 
 Plugin::Plugin()
-{    
+{
     parameters = new Parameters(this, kInternalBlocksize);
     granulator = new Granulator(parameters, kInternalBlocksize);
     program_bank = new ProgramBank(kNumPrograms, parameters);
     editor_parameter_update_pending = false;
     editor_program_update_pending = false;
-    current_program = 0;    
+    current_program = 0;
     saved_state = true;
     block_sample_pos = 0;
     progchange_param_enabled = true;
@@ -81,6 +81,11 @@ const String Plugin::getOutputChannelName(const int channelIndex) const
     return (channelIndex == 0) ? "L" : "R";
 }
 
+double Plugin::getTailLengthSeconds() const
+{
+  return 0.0;
+}
+
 AudioProcessorEditor* Plugin::createEditor()
 {
     return new PluginEditor(this);
@@ -104,8 +109,8 @@ void Plugin::processBlock(AudioSampleBuffer& buffer, MidiBuffer& midiMessages)
     float* chan1 = buffer.getSampleData(0);
     float* chan2 = buffer.getSampleData(1);
     int sampleframes = buffer.getNumSamples();
-    int blocks = sampleframes / kInternalBlocksize;    
-    
+    int blocks = sampleframes / kInternalBlocksize;
+
     if (getPlayHead() != 0 && getPlayHead()->getCurrentPosition(pos)) {
     if ((&pos)->bpm == 0.0f) {
             parameters->setQuantizationDisabled();
@@ -114,11 +119,11 @@ void Plugin::processBlock(AudioSampleBuffer& buffer, MidiBuffer& midiMessages)
             parameters->setParameter(kDurQuant, 0.0f, false);
         }
         else
-            parameters->time_quantizer->setPositionInfo(&pos);     
+            parameters->time_quantizer->setPositionInfo(&pos);
     } else {
         parameters->setQuantizationDisabled();
     }
-        
+
     block_sample_pos = 0;
     for (int i = 0; i < blocks; i++) {
         granulator->processInternalBlock(chan1, chan2, kInternalBlocksize);
@@ -128,7 +133,7 @@ void Plugin::processBlock(AudioSampleBuffer& buffer, MidiBuffer& midiMessages)
     }
     int samples_remaining = sampleframes % kInternalBlocksize;
     if (samples_remaining) {
-        granulator->processInternalBlock(chan1, chan2, samples_remaining);    
+        granulator->processInternalBlock(chan1, chan2, samples_remaining);
     }
 }
 
@@ -168,7 +173,7 @@ bool Plugin::isMetaParameter(int parameterIndex) const
     if (parameterIndex == kProgram) {
         return true;
     }
-    else 
+    else
         return false;
 }
 
@@ -185,16 +190,16 @@ void Plugin::setParameter(int index, float new_value)
                 int selected_program = static_cast<int>(new_value * (kNumPrograms - 1));
                 if (current_program != selected_program) {
                     setCurrentProgram(selected_program);
-                }        
+                }
             }
         } else {
-            parameters->setParameter(index, new_value, false);    
-        }  
-        setParametersChangedState();            
+            parameters->setParameter(index, new_value, false);
+        }
+        setParametersChangedState();
     }
 }
 
-void Plugin::toggleProgchangeEnabled() 
+void Plugin::toggleProgchangeEnabled()
 {
     progchange_param_enabled = !progchange_param_enabled;
 }
@@ -254,8 +259,8 @@ bool Plugin::getParametersChangedState()
         editor_parameter_update_pending = false;
         return true;
     }
-    else 
-        return false;   
+    else
+        return false;
 }
 
 void Plugin::setParametersChangedState()
@@ -269,8 +274,8 @@ bool Plugin::getProgramChangedState()
         editor_program_update_pending = false;
         return true;
     }
-    else 
-        return false;    
+    else
+        return false;
 }
 
 int Plugin::getNumPrograms()
@@ -289,7 +294,7 @@ void Plugin::initCurrentProgram()
 void Plugin::saveProgramTo(int index)
 {
     String current_program_name = program_bank->getProgramName(current_program);
-    program_bank->saveProgramState(index);    
+    program_bank->saveProgramState(index);
     program_bank->setProgramName(index, current_program_name);
     current_program = index;
     setSavedState(true);
@@ -307,7 +312,7 @@ void Plugin::setCurrentProgram(int index)
 void Plugin::getCurrentProgramStateInformation(MemoryBlock& destData)
 {
     //save current settings
-    program_bank->saveProgramState(current_program);    
+    program_bank->saveProgramState(current_program);
     saveProgramTo(current_program);
 
     //output program to host
@@ -331,7 +336,7 @@ void Plugin::setCurrentProgramStateInformation(const void* data, int sizeInBytes
 void Plugin::getStateInformation (MemoryBlock& destData)
 {
     // save current program
-    program_bank->saveProgramState(current_program);    
+    program_bank->saveProgramState(current_program);
 
     // output program_bank to host
     XmlElement* bankXml = program_bank->createBankXml();
@@ -367,7 +372,7 @@ void Plugin::loadBankXml(File* file)
 void Plugin::saveBankXml(File* file)
 {
     // save current program
-    program_bank->saveProgramState(current_program);    
+    program_bank->saveProgramState(current_program);
 
     // output bank to file
     XmlElement* bankXml = program_bank->createBankXml();
@@ -392,7 +397,7 @@ void Plugin::loadCurrentProgramXml(File* file)
 void Plugin::saveCurrentProgramXml(File* file)
 {
     //save current settings
-    program_bank->saveProgramState(current_program);    
+    program_bank->saveProgramState(current_program);
     saveProgramTo(current_program);
 
     //output program to file

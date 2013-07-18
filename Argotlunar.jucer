@@ -8,7 +8,7 @@
               pluginSilenceInIsSilenceOut="0" pluginTailLength="0" pluginEditorRequiresKeys="1"
               pluginAUExportPrefix="ArgotlunarAU" pluginAUViewClass="ArgotlunarAU"
               pluginRTASCategory="" bundleIdentifier="com.MichaelOurednik.Argotlunar"
-              jucerVersion="3.0.0" aaxIdentifier="com.yourcompany.Argotlunar"
+              jucerVersion="3.1.0" aaxIdentifier="com.yourcompany.Argotlunar"
               pluginAAXCategory="AAX_ePlugInCategory_Dynamics">
   <EXPORTFORMATS>
     <XCODE_MAC targetFolder="Builds/MacOSX" vstFolder="..\vstsdk2.4" rtasFolder="~/SDKs/PT_80_SDK"

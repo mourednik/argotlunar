@@ -27,7 +27,7 @@ public:
     void setParameter(int index, float new_value);
     void setMatrixSource(int index, int param);
     void setMatrixDest(int index, int param);
-    void setMatrixMode(int index, int param);    
+    void setMatrixMode(int index, int param);
     const String getParameterName (int index);
     const String getParameterText (int index);
     int getCurrentProgram();
@@ -50,7 +50,8 @@ public:
     bool producesMidi() const;
     bool hasEditor() const;
     bool isMetaParameter(int parameterIndex) const;
-	bool silenceInProducesSilenceOut(void) const;
+    bool silenceInProducesSilenceOut(void) const;
+    double getTailLengthSeconds() const;
     
     // New methods
     void loadBankXml(File* file);
@@ -62,10 +63,10 @@ public:
     bool getSavedState();
     void setSavedState(bool state);
     bool getParametersChangedState();
-    void setParametersChangedState();       
+    void setParametersChangedState();
     bool getProgramChangedState();
     void initCurrentProgram();
-    void saveProgramTo(int index);        
+    void saveProgramTo(int index);
     std::vector<String> getScaleNames();
     void toggleProgchangeEnabled();
     bool isProgchangeEnabled();
@@ -74,15 +75,15 @@ public:
     static const int kInternalBlocksize = 32;
     Parameters* parameters;
     Granulator* granulator;
-    
-private:    
-    int current_program;    
+
+private:
+    int current_program;
     bool saved_state;
-    bool editor_parameter_update_pending; 
-    bool editor_program_update_pending; 
+    bool editor_parameter_update_pending;
+    bool editor_program_update_pending;
     AudioPlayHead::CurrentPositionInfo pos;
     unsigned int block_sample_pos;
-    ProgramBank* program_bank;  
+    ProgramBank* program_bank;
     bool progchange_param_enabled;
 };
 
