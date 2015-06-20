@@ -1,32 +1,57 @@
-<!DOCTYPE html>
-<html lang="en-us">
+<!doctype html>
+<html>
   <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
     <title>Argotlunar by mourednik</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
-    <link href='http://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
-    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
-    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-dark.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
   </head>
   <body>
-    <section class="page-header">
-      <h1 class="project-name">Argotlunar</h1>
-      <h2 class="project-tagline">Granulator VST / AudioUnit</h2>
-      <a href="https://github.com/mourednik/argotlunar" class="btn">View on GitHub</a>
-      <a href="https://github.com/mourednik/argotlunar/zipball/master" class="btn">Download .zip</a>
-      <a href="https://github.com/mourednik/argotlunar/tarball/master" class="btn">Download .tar.gz</a>
-    </section>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/mourednik/argotlunar">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/mourednik/argotlunar/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/mourednik/argotlunar/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
 
-    <section class="main-content">
-      <h3>
+    <div class="wrapper">
+
+      <section>
+        <div id="title">
+          <h1>Argotlunar</h1>
+          <p>Granulator VST / AudioUnit</p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/mourednik">mourednik</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/michigangraham">mattgraham</a></span>
+        </div>
+
+        <h3>
 <a id="introduction" class="anchor" href="#introduction" aria-hidden="true"><span class="octicon octicon-link"></span></a>Introduction</h3>
 
 <p>Argotlunar is a real-time delay-line granulator. It breaks up an incoming audio stream into short samples (Grains). Each grain can have random settings of amplitude, panning, duration, delay, pitch, glissando, filter and envelope. The output of all grains is mixed and sent to the main output. The main output can be fed back into the main input.</p>
 
 <p>Time-related parameters can be synced to the host tempo, for rhythmic or pulsing textures. Pitch-related parameters can be quantized for harmonic or melodic effects. Feedback can create chaotic and distorted sounds.</p>
 
-<p>Most of the parameters can be <em>correlated</em>. Examples: Higher filter cut-off for grains with higher pitch, and vice versa. Grains with shorter duration can be panned to the center, and conversely the grains with longer duration can be panned wide in the stereo field.</p>
+<p>Most of the parameters can be <em>correlated</em>.
+<em>Examples</em></p>
+
+<ul>
+<li>Filter cut-off correlated with pitch: Higher filter cut-off for grains with higher pitch, and vice versa.</li>
+<li>Grain duration correlated with panning: Grains with shorter duration panned to the center of the stereo field, and grains with longer duration panned wide in the stereo field.</li>
+</ul>
 
 <p>Argotlunar is free software. Licensed under the <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html">GPL v2</a>.</p>
 
@@ -50,25 +75,20 @@
 <a id="notes" class="anchor" href="#notes" aria-hidden="true"><span class="octicon octicon-link"></span></a>Notes</h3>
 
 <ul>
-<li>Not compatible with Final Cut Pro X</li>
-<li>Linux users should install ttf-bitstream-vera fonts.</li>
+<li>Not compatible with Final Cut Pro X.</li>
+<li>Linux users should install <code>ttf-bitstream-vera</code> fonts.</li>
 <li>Old versions of Renoise require the setting <code>Use static processing buffers</code> enabled in the plugin compatibility options.</li>
 </ul>
 
 <h3>
 <a id="contact" class="anchor" href="#contact" aria-hidden="true"><span class="octicon octicon-link"></span></a>Contact</h3>
 
-<p>argotlunar at gmail dot com.</p>
+<p>Please feel welcome to contact me with any suggestions, comments, links to your music, etc.
+argotlunar at gmail dot com</p>
+      </section>
 
-      <footer class="site-footer">
-        <span class="site-footer-owner"><a href="https://github.com/mourednik/argotlunar">Argotlunar</a> is maintained by <a href="https://github.com/mourednik">mourednik</a>.</span>
-
-        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
-      </footer>
-
-    </section>
-
-  
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+    
   </body>
 </html>
-
