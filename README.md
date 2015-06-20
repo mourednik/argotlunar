@@ -1,7 +1,7 @@
 Argotlunar
 ==========
 
-Realtime granulator VST plugin. 
+Realtime granulator VST / AudioUnit plugin. 
 
 Uses the JUCE toolkit. This version is based on JUCE Git 2013-02-17.
 
