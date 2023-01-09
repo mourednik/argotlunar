@@ -1,7 +1,7 @@
 #ifndef PITCHQUANTIZER_H
 #define PITCHQUANTIZER_H
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include "JuceHeader.h"
 #include <math.h>
 #include <vector>
 #include "Misc.h"

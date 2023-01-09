@@ -1,7 +1,7 @@
 #ifndef PROGRAMBANK_H
 #define PROGRAMBANK_H
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include "JuceHeader.h"
 #include "Debug.h"
 #include "Program.h"
 #include "Parameters.h"

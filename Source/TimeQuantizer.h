@@ -2,7 +2,7 @@
 #define TIMEQUANTIZER_H
 
 #include <map>
-#include "../JuceLibraryCode/JuceHeader.h"
+#include "JuceHeader.h"
 #include "Misc.h"
 #include "Parameters.h"
 #include "ParametersEnum.h"

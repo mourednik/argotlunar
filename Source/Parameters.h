@@ -4,7 +4,7 @@
 class Plugin;
 
 #include <math.h>
-#include "../JuceLibraryCode/JuceHeader.h"
+#include "JuceHeader.h"
 #include "Envelope.h"
 #include "Filter.h"
 #include "Misc.h"

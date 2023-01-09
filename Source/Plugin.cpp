@@ -106,8 +106,8 @@ void Plugin::processBlock(AudioSampleBuffer& buffer, MidiBuffer& midiMessages)
     if (getNumInputChannels() != 2 && getNumOutputChannels() != 2) {
         return;
     }
-    float* chan1 = buffer.getSampleData(0);
-    float* chan2 = buffer.getSampleData(1);
+    float* chan1 = buffer.getWritePointer(0);
+    float* chan2 = buffer.getWritePointer(1);
     int sampleframes = buffer.getNumSamples();
     int blocks = sampleframes / kInternalBlocksize;
 
@@ -324,11 +324,9 @@ void Plugin::getCurrentProgramStateInformation(MemoryBlock& destData)
 void Plugin::setCurrentProgramStateInformation(const void* data, int sizeInBytes)
 {
     //load program from host
-    XmlElement* const xml_state = getXmlFromBinary(data, sizeInBytes);
-    if (xml_state != 0) {
-        program_bank->loadProgramFromXml(current_program, xml_state);
+    if (const auto xml_state = getXmlFromBinary(data, sizeInBytes)) {
+        program_bank->loadProgramFromXml(current_program, xml_state.get());
         setCurrentProgram(current_program);
-        delete xml_state;
         editor_program_update_pending = true;
     }
 }
@@ -347,11 +345,9 @@ void Plugin::getStateInformation (MemoryBlock& destData)
 void Plugin::setStateInformation (const void* data, int sizeInBytes)
 {
     //load bank from host
-    XmlElement* const xml_state = getXmlFromBinary(data, sizeInBytes);
-    if (xml_state != 0) {
-        program_bank->loadBankFromXml(xml_state);
+    if (const auto xml_state = getXmlFromBinary(data, sizeInBytes)) {
+        program_bank->loadBankFromXml(xml_state.get());
         setCurrentProgram(current_program);
-        delete xml_state;
         editor_program_update_pending = true;
     }
 }
@@ -360,11 +356,9 @@ void Plugin::loadBankXml(File* file)
 {
     //load bank from file
     XmlDocument xml_document(*file);
-    XmlElement* xml_state = xml_document.getDocumentElement();
-    if (xml_state != 0) {
-        program_bank->loadBankFromXml(xml_state);
+    if (const auto xml_state = xml_document.getDocumentElement()) {
+        program_bank->loadBankFromXml(xml_state.get());
         setCurrentProgram(current_program);
-        delete xml_state;
         editor_program_update_pending = true;
     }
 }
@@ -376,7 +370,7 @@ void Plugin::saveBankXml(File* file)
 
     // output bank to file
     XmlElement* bankXml = program_bank->createBankXml();
-    file->replaceWithText(bankXml->createDocument(String::empty));
+    file->replaceWithText(bankXml->createDocument(String()));
     delete bankXml;
     editor_program_update_pending = true;
     setSavedState(true);
@@ -386,11 +380,9 @@ void Plugin::loadCurrentProgramXml(File* file)
 {
     //load program from file
     XmlDocument xml_document(*file);
-    XmlElement* xml_state = xml_document.getDocumentElement();
-    if (xml_state != 0) {
-        program_bank->loadProgramFromXml(current_program, xml_state);
+    if (const auto xml_state = xml_document.getDocumentElement()) {
+        program_bank->loadProgramFromXml(current_program, xml_state.get());
         setCurrentProgram(current_program);
-        delete xml_state;
         editor_program_update_pending = true;
     }
 }
@@ -402,6 +394,6 @@ void Plugin::saveCurrentProgramXml(File* file)
 
     //output program to file
     XmlElement* program = program_bank->createProgramXml(current_program);
-    file->replaceWithText(program->createDocument(String::empty));
+    file->replaceWithText(program->createDocument(String()));
     delete program;
 }

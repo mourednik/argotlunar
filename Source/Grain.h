@@ -1,7 +1,7 @@
 #ifndef GRAIN_H
 #define GRAIN_H
 
-#include "../JuceLibraryCode/JuceHeader.h"
+#include "JuceHeader.h"
 #include "Debug.h"
 #include "CombFilter.h"
 #include "Envelope.h"

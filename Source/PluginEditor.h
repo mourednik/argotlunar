@@ -23,7 +23,7 @@
 #define __JUCER_HEADER_PLUGINEDITOR_PLUGINEDITOR_47FE96EF__
 
 //[Headers]     -- You can add your own extra header files here --
-#include "../JuceLibraryCode/JuceHeader.h"
+#include "JuceHeader.h"
 #include "Debug.h"
 #include "Plugin.h"
 
@@ -45,9 +45,9 @@ enum ComponentType {
 */
 class PluginEditor  : public AudioProcessorEditor,
                       public Timer,
-                      public SliderListener,
-                      public ComboBoxListener,
-                      public ButtonListener
+                      public Slider::Listener,
+                      public ComboBox::Listener,
+                      public Button::Listener
 {
 public:
     //==============================================================================

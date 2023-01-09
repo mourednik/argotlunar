@@ -1,0 +1,1 @@
+/Library/Developer/CommandLineTools/usr/bin/c++  -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX13.1.sdk -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/juce_lv2_helper.dir/modules/juce_audio_plugin_client/LV2/juce_LV2TurtleDumpProgram.cpp.o -o juce_lv2_helper 

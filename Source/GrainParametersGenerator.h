@@ -2,7 +2,7 @@
 #define GRAINPARAMETERSGENERATOR_H
 
 #include <math.h>
-#include "../JuceLibraryCode/JuceHeader.h"
+#include "JuceHeader.h"
 #include "GrainParameters.h"
 #include "Granulator.h"
 #include "Misc.h"

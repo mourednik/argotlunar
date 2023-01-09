@@ -240,7 +240,7 @@ const String Parameters::getParameterName(int index)
     case kProgram:
         return "program";
     }
-    return String::empty;
+    return String();
 }
 
 const String Parameters::getParameterText(int index)
